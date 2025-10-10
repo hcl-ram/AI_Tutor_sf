@@ -218,6 +218,69 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     return vectors
 
 
+def build_context_from_document(question: str, s3_key: str, top_k: int = 5) -> Tuple[str, List[Dict[str, str]]]:
+    """Builds a concise context from a single S3 document relevant to the question.
+
+    Returns a tuple of (context, sources).
+    """
+    client = s3_client()
+    try:
+        obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        body: bytes = obj["Body"].read()
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch document from S3: {e}")
+
+    text = load_object_bytes_to_text(s3_key, body)
+    chunks = chunk_text(text)
+    if not chunks:
+        return "", []
+
+    # Embed chunks and question, score by dot product (cosine-like, as we unit-normalize)
+    import numpy as np
+    chunk_vectors = embed_texts(chunks)
+    q_vec = embed_texts([question])[0]
+    q = np.array(q_vec, dtype="float32")
+    matrix = np.array(chunk_vectors, dtype="float32")
+    # Assume normalized by embed_texts
+    scores = matrix @ q
+    top_k = max(1, min(top_k, len(chunks)))
+    top_indices = np.argsort(-scores)[:top_k]
+    selected = [chunks[int(i)] for i in top_indices]
+    context = "\n\n".join(selected)
+    sources = [{"source": s3_key, "score": f"{float(scores[int(i)]):.4f}"} for i in top_indices]
+    return context, sources
+
+
+def summarize_document(s3_key: str, max_sections: int = 6) -> str:
+    """Summarize a document by selecting representative chunks and asking the LLM to summarize."""
+    client = s3_client()
+    try:
+        obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        body: bytes = obj["Body"].read()
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch document from S3: {e}")
+
+    text = load_object_bytes_to_text(s3_key, body)
+    chunks = chunk_text(text)
+    if not chunks:
+        return ""
+
+    # Pick the first N moderately sized chunks as a coarse summary basis
+    selected = chunks[:max_sections]
+    context = "\n\n".join(selected)
+
+    prompt = (
+        "You are an assistant that writes concise summaries. Read the context and write a clear,"
+        " student-friendly summary (5-7 sentences), listing key topics and any important definitions."
+    )
+    try:
+        summary = call_bedrock_rag("Summarize this document.", context=f"{prompt}\n\n{context}")
+        return summary.strip()
+    except Exception:
+        # Fallback: return first chunk if LLM fails
+        return selected[0][:500]
+
+
 def s3_client():
     session = get_boto3_session()
     return session.client("s3", region_name=AWS_REGION, config=Config(signature_version="s3v4"))

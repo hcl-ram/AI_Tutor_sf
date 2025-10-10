@@ -13,6 +13,8 @@ const DocChat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [docSummary, setDocSummary] = useState('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   const handleFileUpload = async (file) => {
     if (file && file.type === 'application/pdf') {
@@ -20,6 +22,23 @@ const DocChat = () => {
       try {
         const result = await uploadDocument(file);
         setUploadedDocument(result);
+        // Fetch summary for preview
+        const token = localStorage.getItem('token');
+        const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        if (result?.s3Key) {
+          setLoadingSummary(true);
+          try {
+            const res = await fetch(`${base}/tutor/doc-summary`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ s3_key: result.s3Key })
+            });
+            const data = await res.json();
+            if (res.ok) setDocSummary(data.summary || '');
+          } finally {
+            setLoadingSummary(false);
+          }
+        }
         setMessages([
           {
             id: 1,
@@ -49,7 +68,7 @@ const DocChat = () => {
     handleFileUpload(file);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (inputMessage.trim() && uploadedDocument) {
       const userMessage = {
         id: messages.length + 1,
@@ -59,19 +78,32 @@ const DocChat = () => {
 
       setMessages([...messages, userMessage]);
       setInputMessage('');
-
-      // Simulate AI response
-      setTimeout(() => {
+      // Call backend RAG answer endpoint
+      try {
+        const token = localStorage.getItem('token');
+        const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        const s3Key = uploadedDocument?.s3Key || uploadedDocument?.documentId; // prefer s3Key
+        const res = await fetch(`${base}/tutor/rag-answer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ question: userMessage.content, s3_key: s3Key })
+        });
+        const data = await res.json();
         const aiMessage = {
-          id: messages.length + 2,
+          id: userMessage.id + 1,
           type: 'ai',
-          content: language === 'en'
-            ? 'This is a simulated AI response. In production, this would analyze your document and provide relevant answers based on the content.'
-            : 'यह एक सिम्युलेटेड AI प्रतिक्रिया है। उत्पादन में, यह आपके दस्तावेज़ का विश्लेषण करेगा और सामग्री के आधार पर प्रासंगिक उत्तर प्रदान करेगा।',
-          references: ['Page 1, Paragraph 2'],
+          content: data?.answer || (language === 'en' ? 'No answer available.' : 'उत्तर उपलब्ध नहीं है।'),
+          references: (data?.sources || []).map((s) => `${s.source} (${s.score})`)
         };
         setMessages((prev) => [...prev, aiMessage]);
-      }, 1000);
+      } catch (e) {
+        const aiMessage = {
+          id: userMessage.id + 1,
+          type: 'ai',
+          content: language === 'en' ? 'Failed to fetch answer.' : 'उत्तर प्राप्त करने में विफल।'
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      }
     }
   };
 
@@ -181,9 +213,7 @@ const DocChat = () => {
               <div className="flex-1 bg-gray-100 rounded-lg p-4 overflow-auto">
                 <div className="bg-white rounded shadow-sm p-8 min-h-full">
                   <p className="text-gray-700 mb-4">
-                    {language === 'en'
-                      ? 'Document Preview (Placeholder)'
-                      : 'दस्तावेज़ पूर्वावलोकन (प्लेसहोल्डर)'}
+                    {language === 'en' ? 'Document Summary' : 'दस्तावेज़ सारांश'}
                   </p>
                   <p className="text-gray-600 text-sm">
                     <strong>{uploadedDocument.fileName}</strong>
@@ -191,15 +221,12 @@ const DocChat = () => {
                   <p className="text-gray-500 text-sm mt-2">
                     {uploadedDocument.pageCount} {language === 'en' ? 'pages' : 'पृष्ठ'}
                   </p>
-                  <div className="mt-8 space-y-4">
-                    <p className="text-gray-700">
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
-                      tempor incididunt ut labore et dolore magna aliqua.
-                    </p>
-                    <p className="text-gray-700">
-                      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-                      aliquip ex ea commodo consequat.
-                    </p>
+                  <div className="mt-4">
+                    {loadingSummary ? (
+                      <div className="text-sm text-gray-500">{language === 'en' ? 'Summarizing…' : 'सारांश बनाया जा रहा है…'}</div>
+                    ) : (
+                      <p className="text-gray-700 whitespace-pre-wrap">{docSummary || (language === 'en' ? 'No summary available.' : 'सारांश उपलब्ध नहीं है।')}</p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -39,6 +39,8 @@ def _sanitize_json_text(raw_text: str) -> str:
         end = text.rfind(']')
         if start != -1 and end != -1 and end > start:
             text = text[start:end+1]
+    # Remove trailing commas before closing braces/brackets
+    text = re.sub(r",\s*([}\]])", r"\1", text)
     return text.strip()
 
 
@@ -145,6 +147,17 @@ def generate_quiz(
                     quiz_data = json.loads(text_output.replace("'", '"'))
                 except Exception:
                     quiz_data = None
+            # Fallback 3: extract multiple JSON objects and wrap in an array
+            if quiz_data is None:
+                objs = re.findall(r"\{[\s\S]*?\}", text_output)
+                # Keep only objects that look like quiz entries
+                filtered = [o for o in objs if re.search(r"\"question\"\s*:\s*\"", o)]
+                if filtered:
+                    joined = "[" + ",".join(filtered) + "]"
+                    try:
+                        quiz_data = json.loads(_sanitize_json_text(joined))
+                    except Exception:
+                        quiz_data = None
 
         if quiz_data is None:
             print("⚠️ Model returned invalid JSON format.")

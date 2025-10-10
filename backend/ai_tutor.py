@@ -69,3 +69,33 @@ def process_user_query(user_id: str, user_message: str, attachment_path: str = N
     except Exception as e:
         print(f"❌ Bedrock call failed: {e}")
         return "Sorry, I encountered an issue while processing your query."
+
+
+def generate_answer_with_context(question: str, context: str) -> str:
+    """Generate an answer using provided external context (for RAG)."""
+    system_instructions = (
+        "You are an intelligent NCERT-based AI Tutor. Use ONLY the provided context to answer. "
+        "If the answer is not in the context, say you don't know."
+    )
+    prompt = (
+        f"{system_instructions}\n\nContext:\n{context}\n\nQuestion: {question}\nAnswer concisely and factually, grounded in the context."
+    )
+
+    try:
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 700,
+            "temperature": 0.2,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        })
+        response = bedrock.invoke_model(
+            modelId=BEDROCK_MODEL_ID,
+            body=body
+        )
+        result = json.loads(response["body"].read())
+        answer = result.get("content", [{}])[0].get("text", "").strip()
+        return answer or "I don't know based on the provided context."
+    except Exception as e:
+        return "I couldn't generate an answer with the provided context."

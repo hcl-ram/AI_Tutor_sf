@@ -12,6 +12,9 @@ from pydantic import BaseModel, EmailStr
 from jose import jwt
 
 from quiz_generator import generate_quiz
+from recommendation_engine import generate_recommendations
+from ai_tutor import generate_answer_with_context
+from rag_service import build_context_from_document, summarize_document
 
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
@@ -47,6 +50,32 @@ class QuizRequest(BaseModel):
     topic: str
     difficulty: str
     num_questions: int = 5
+
+
+class RecommendationItem(BaseModel):
+    question: str
+    options: List[str]
+    correct_index: int
+    selected_index: int | None = None
+    explanation: str | None = None
+    student_explanation: str | None = None
+
+
+class RecommendationsRequest(BaseModel):
+    subject: str
+    topic: str
+    class_level: str | None = None
+    difficulty: str | None = None
+    results: List[RecommendationItem]
+
+
+class TutorRAGRequest(BaseModel):
+    question: str
+    s3_key: str
+
+
+class DocSummaryRequest(BaseModel):
+    s3_key: str
 
 
 # =========================
@@ -122,6 +151,56 @@ def quiz_generate(req: QuizRequest, user=Depends(require_auth)):
         num_questions=req.num_questions,
     )
     return {"questions": questions}
+
+
+@app.post("/quiz/recommendations")
+def quiz_recommendations(req: RecommendationsRequest, user=Depends(require_auth)):
+    # Convert pydantic models to simple dicts for the engine
+    result_dicts = [
+        {
+            "question": r.question,
+            "options": r.options,
+            "correct_index": r.correct_index,
+            "selected_index": r.selected_index,
+            "explanation": r.explanation or "",
+            "student_explanation": r.student_explanation or "",
+        }
+        for r in req.results
+    ]
+    recs = generate_recommendations(
+        result_dicts,
+        subject=req.subject,
+        topic=req.topic,
+        class_level=req.class_level,
+        difficulty=req.difficulty,
+    )
+    return {"recommendations": recs}
+
+
+@app.post("/tutor/rag-answer")
+def tutor_rag_answer(req: TutorRAGRequest, user=Depends(require_auth)):
+    # Build context from the referenced document
+    try:
+        context, sources = build_context_from_document(req.question, req.s3_key, top_k=5)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to build context: {e}")
+
+    if not context:
+        # Still call model with an empty context to return a safe message
+        answer = generate_answer_with_context(req.question, "")
+        return {"answer": answer, "sources": []}
+
+    answer = generate_answer_with_context(req.question, context)
+    return {"answer": answer, "sources": sources}
+
+
+@app.post("/tutor/doc-summary")
+def tutor_doc_summary(req: DocSummaryRequest, user=Depends(require_auth)):
+    try:
+        summary = summarize_document(req.s3_key)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to summarize: {e}")
+    return {"summary": summary}
 
 
 # =========================

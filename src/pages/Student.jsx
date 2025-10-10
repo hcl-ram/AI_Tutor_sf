@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight, RefreshCw } from 'lucide-react';
-import QuizCard from '../components/QuizCard';
+// QuizCard removed from single-question flow; showing all questions at once
 import ProgressBar from '../components/ProgressBar';
 import useAppState from '../hooks/useAppState';
 import { useTranslation } from '../utils/translations';
@@ -39,6 +39,12 @@ const Student = () => {
   const [showHints, setShowHints] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState('');
+  const [answerResults, setAnswerResults] = useState([]); // {question, is_correct} per item
+  const [recs, setRecs] = useState(null); // {strong_topics:[], needs_practice:[], summary}
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [recsError, setRecsError] = useState('');
+  const [selectedAnswers, setSelectedAnswers] = useState([]); // per-question selected option index or null
+  const [selectedRationales, setSelectedRationales] = useState([]); // per-question free-text rationale
 
   const classes = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
   const subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'];
@@ -61,6 +67,9 @@ const Student = () => {
       try {
         setQuizError('');
         setQuizLoading(true);
+        setAnswerResults([]);
+        setRecs(null);
+        setRecsError('');
         const token = localStorage.getItem('token');
         const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
         const res = await fetch(`${base}/quiz/generate`, {
@@ -84,6 +93,8 @@ const Student = () => {
           hint: q.hint
         }));
         setQuestions(normalized);
+        setSelectedAnswers(new Array(normalized.length).fill(null));
+        setSelectedRationales(new Array(normalized.length).fill(''));
         setCurrentQuestionIndex(0);
         setScore(0);
         setShowHints(false);
@@ -122,18 +133,49 @@ const Student = () => {
     }
   };
 
-  const handleAnswer = (isCorrect) => {
-    if (isCorrect) {
-      setScore(score + 1);
+  const submitQuiz = async () => {
+    if (!questions.length) return;
+    const computedResults = questions.map((q, idx) => {
+      const sel = selectedAnswers[idx];
+      const correct = q.correctAnswer;
+      return {
+        question: q.question,
+        options: q.options,
+        correct_index: correct,
+        selected_index: sel,
+        explanation: q.explanation,
+        student_explanation: selectedRationales[idx] || '',
+      };
+    });
+    const totalScore = computedResults.reduce((acc, r) => acc + (r.selected_index === r.correct_index ? 1 : 0), 0);
+    setScore(totalScore);
+    setAnswerResults(computedResults);
+    try {
+      setRecsLoading(true);
+      setRecsError('');
+      const token = localStorage.getItem('token');
+      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+      const res = await fetch(`${base}/quiz/recommendations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          subject: selectedSubject,
+          topic: selectedTopic || selectedSubject,
+          class_level: (selectedClass.match(/\d+/)?.[0] || '10'),
+          difficulty: difficulty,
+          results: computedResults,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to get recommendations');
+      setRecs(data?.recommendations || null);
+    } catch (err) {
+      setRecs(null);
+      setRecsError(err.message || 'Unable to load recommendations');
+    } finally {
+      setRecsLoading(false);
+      setStep(3);
     }
-    
-    setTimeout(() => {
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      } else {
-        setStep(3);
-      }
-    }, 2000);
   };
 
   const handleRetryWithHints = () => {
@@ -364,12 +406,68 @@ const Student = () => {
             )}
 
             {!quizLoading && questions.length > 0 ? (
-              <QuizCard
-                question={questions[currentQuestionIndex]}
-                onAnswer={handleAnswer}
-                showHint={showHints}
-                language={language}
-              />
+              <div className="space-y-6">
+                {questions.map((q, idx) => (
+                  <div key={idx} className="card">
+                    <div className="mb-3 font-medium text-gray-900">
+                      {language === 'en' ? 'Question' : 'प्रश्न'} {idx + 1}:
+                    </div>
+                    <div className="mb-4 text-gray-800">{q.question}</div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {q.options.map((opt, oidx) => (
+                        <label key={oidx} className={`p-3 rounded-lg border cursor-pointer transition ${selectedAnswers[idx] === oidx ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <input
+                            type="radio"
+                            name={`q-${idx}`}
+                            className="mr-2"
+                            checked={selectedAnswers[idx] === oidx}
+                            onChange={() => {
+                              setSelectedAnswers((prev) => {
+                                const next = [...prev];
+                                next[idx] = oidx;
+                                return next;
+                              });
+                            }}
+                          />
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                    {/* Learner rationale input */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {language === 'en' ? 'Explain your answer (optional)' : 'अपने उत्तर का कारण बताएं (वैकल्पिक)'}
+                      </label>
+                      <textarea
+                        className="input min-h-[88px]"
+                        placeholder={language === 'en' ? 'Write a brief explanation of your choice...' : 'अपनी पसंद का संक्षिप्त कारण लिखें...'}
+                        value={selectedRationales[idx] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedRationales((prev) => {
+                            const next = [...prev];
+                            next[idx] = val;
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
+                    {showHints && q.hint && (
+                      <div className="mt-3 text-sm text-gray-600">{q.hint}</div>
+                    )}
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={submitQuiz}
+                    className="btn-primary"
+                  >
+                    {language === 'en' ? 'Submit Answers' : 'उत्तर सबमिट करें'}
+                  </motion.button>
+                </div>
+              </div>
             ) : (!quizLoading && (
               <div className="card max-w-2xl mx-auto text-center text-gray-600">
                 {quizError || (language === 'en' ? 'No questions available. Try another selection.' : 'कोई प्रश्न उपलब्ध नहीं। कोई अन्य चयन आज़माएँ।')}
@@ -402,25 +500,64 @@ const Student = () => {
               <ProgressBar progress={Math.round((score / questions.length) * 100)} />
             </div>
 
-            {/* Recommendations */}
+            {/* Recommendations - Rich UI */}
             <div className="mb-8 text-left">
               <h3 className="font-semibold text-lg mb-4">
                 {language === 'en' ? 'Your Learning Path' : 'आपका सीखने का मार्ग'}
               </h3>
-              <div className="space-y-3">
-                <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                  <p className="font-medium text-green-800">
-                    {language === 'en' ? 'Strong Topics' : 'मजबूत विषय'}
-                  </p>
-                  <p className="text-sm text-green-700">Basic arithmetic, Simple equations</p>
-                </div>
-                <div className="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
-                  <p className="font-medium text-yellow-800">
-                    {language === 'en' ? 'Needs Practice' : 'अभ्यास की आवश्यकता'}
-                  </p>
-                  <p className="text-sm text-yellow-700">Word problems, Complex calculations</p>
-                </div>
-              </div>
+              {recsLoading && (
+                <div className="text-sm text-gray-600">{language === 'en' ? 'Analyzing your answers…' : 'आपके उत्तरों का विश्लेषण हो रहा है…'}</div>
+              )}
+              {!recsLoading && recsError && (
+                <div className="text-sm text-red-600">{recsError}</div>
+              )}
+              {!recsLoading && recs && (
+                <>
+                  {recs.summary && (
+                    <p className="mb-4 text-gray-700">{recs.summary}</p>
+                  )}
+                  {/* Per-question breakdown */}
+                  {Array.isArray(recs.breakdown) && recs.breakdown.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-2">{language === 'en' ? 'Question-wise feedback' : 'प्रश्नवार प्रतिक्रिया'}</h4>
+                      <div className="space-y-3">
+                        {recs.breakdown.map((b, i) => (
+                          <div key={i} className={`p-4 rounded-lg border ${b.is_correct ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                            <div className="font-medium text-gray-900 mb-1">Q{i+1}. {b.question}</div>
+                            <div className="text-sm text-gray-700"><span className="font-medium">{language === 'en' ? 'Your answer' : 'आपका उत्तर'}:</span> {b.selected || (language === 'en' ? 'None' : 'कोई नहीं')}</div>
+                            <div className="text-sm text-gray-700"><span className="font-medium">{language === 'en' ? 'Correct answer' : 'सही उत्तर'}:</span> {b.correct}</div>
+                            {b.explanation && (
+                              <div className="text-sm text-gray-600 mt-1">{b.explanation}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Learning path */}
+                  {Array.isArray(recs.learning_path) && recs.learning_path.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-2">{language === 'en' ? 'Personalized learning path' : 'व्यक्तिगत सीखने का मार्ग'}</h4>
+                      <ol className="list-decimal ml-6 space-y-1 text-gray-800">
+                        {recs.learning_path.map((step, i) => (
+                          <li key={i}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                  {/* Topic buckets */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+                      <p className="font-medium text-green-800">{language === 'en' ? 'Strong Topics' : 'मजबूत विषय'}</p>
+                      <p className="text-sm text-green-700">{(recs.strong_topics || []).join(', ') || (language === 'en' ? 'N/A' : 'उपलब्ध नहीं')}</p>
+                    </div>
+                    <div className="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+                      <p className="font-medium text-yellow-800">{language === 'en' ? 'Needs Practice' : 'अभ्यास की आवश्यकता'}</p>
+                      <p className="text-sm text-yellow-700">{(recs.needs_practice || []).join(', ') || (language === 'en' ? 'N/A' : 'उपलब्ध नहीं')}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -442,6 +579,9 @@ const Student = () => {
                   setCurrentQuestionIndex(0);
                   setScore(0);
                   setShowHints(false);
+                  setAnswerResults([]);
+                  setRecs(null);
+                  setRecsError('');
                 }}
                 className="flex-1 btn-primary"
               >
