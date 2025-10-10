@@ -1,16 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-
-const RoleCard = ({ icon: Icon, title, description, path, gradient }) => {
-  const navigate = useNavigate();
+const RoleCard = ({ icon: Icon, title, description, gradient }) => {
 
   return (
     <motion.div
       whileHover={{ scale: 1.05, y: -10 }}
       whileTap={{ scale: 0.98 }}
-      onClick={() => navigate(path)}
-      className="card cursor-pointer group relative overflow-hidden"
+      className="card group relative overflow-hidden"
     >
       {/* Gradient overlay on hover */}
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
@@ -35,13 +31,7 @@ const RoleCard = ({ icon: Icon, title, description, path, gradient }) => {
           {description}
         </p>
 
-        {/* Button */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          className={`mt-4 px-6 py-3 rounded-xl bg-gradient-to-r ${gradient} text-white font-medium shadow-md hover:shadow-lg transition-all`}
-        >
-          Get Started →
-        </motion.button>
+        {/* Removed CTA button to avoid unauthenticated navigation */}
       </div>
     </motion.div>
   );

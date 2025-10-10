@@ -1,16 +1,76 @@
 import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import ProgressBar from '../components/ProgressBar';
 import useAppState from '../hooks/useAppState';
 import { useTranslation } from '../utils/translations';
-import { mockStudentData, mockHeatmapData, mockInterventions } from '../utils/mockData';
+// Removed mocks; will fetch live data from backend
 
 const Teacher = () => {
   const { language } = useAppState();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [auth, setAuth] = useState({ email: '', password: '', name: '' });
+  const [isSignup, setIsSignup] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  React.useEffect(() => {
+    if (location.pathname.endsWith('/teacher/login')) {
+      setIsSignup(false);
+    } else if (location.pathname.endsWith('/teacher/signup')) {
+      setIsSignup(true);
+    }
+  }, [location.pathname]);
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const endpoint = isSignup ? '/auth/teacher/signup' : '/auth/teacher/login';
+      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+      const res = await fetch(`${base}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isSignup ? { name: auth.name, email: auth.email, password: auth.password } : { email: auth.email, password: auth.password }
+        ),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Authentication failed');
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      navigate('/teacher');
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
   const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState('overview');
+  const [students, setStudents] = useState([]);
+  const [heatmap, setHeatmap] = useState([]);
+  const [interventions, setInterventions] = useState([]);
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+    const headers = { 'Authorization': `Bearer ${token}` };
+    Promise.all([
+      fetch(`${base}/teacher/students`, { headers }).then(r => r.json()).catch(() => ({ students: [] })),
+      fetch(`${base}/teacher/heatmap`, { headers }).then(r => r.json()).catch(() => ({ heatmap: [] })),
+      fetch(`${base}/teacher/interventions`, { headers }).then(r => r.json()).catch(() => ({ interventions: [] })),
+    ]).then(([s, h, i]) => {
+      setStudents(s.students || []);
+      setHeatmap(h.heatmap || []);
+      setInterventions(i.interventions || []);
+    });
+  }, []);
 
   const tabs = [
     { id: 'overview', label: t('overview') },
@@ -28,6 +88,28 @@ const Teacher = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="max-w-7xl mx-auto">
+        {/* Auth Card */}
+        <div className="card mb-8 max-w-xl">
+          <h2 className="text-2xl font-display font-bold text-gray-900 mb-4">
+            {isSignup ? (language === 'en' ? 'Teacher Sign Up' : 'शिक्षक पंजीकरण') : (language === 'en' ? 'Teacher Login' : 'शिक्षक लॉगिन')}
+          </h2>
+          <form onSubmit={handleAuth} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {isSignup && (
+              <input className="input md:col-span-1" placeholder={language === 'en' ? 'Full name' : 'पूरा नाम'} value={auth.name} onChange={(e) => setAuth({ ...auth, name: e.target.value })} required />
+            )}
+            <input className="input md:col-span-1" type="email" placeholder="email@example.com" value={auth.email} onChange={(e) => setAuth({ ...auth, email: e.target.value })} required />
+            <input className="input md:col-span-1" type="password" placeholder={language === 'en' ? 'Password' : 'पासवर्ड'} value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} required />
+            {authError && <div className="text-red-600 text-sm md:col-span-3">{authError}</div>}
+            <div className="md:col-span-3 flex items-center gap-3">
+              <button type="submit" className="btn-primary" disabled={authLoading}>
+                {authLoading ? (language === 'en' ? 'Please wait...' : 'कृपया प्रतीक्षा करें...') : isSignup ? (language === 'en' ? 'Create account' : 'खाता बनाएँ') : (language === 'en' ? 'Login' : 'लॉगिन')}
+              </button>
+              <button type="button" className="text-primary-600 font-medium" onClick={() => setIsSignup(!isSignup)}>
+                {isSignup ? (language === 'en' ? 'Have an account? Login' : 'खाता है? लॉगिन करें') : (language === 'en' ? "Don't have an account? Sign up" : 'खाता नहीं? साइन अप करें')}
+              </button>
+            </div>
+          </form>
+        </div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -76,7 +158,7 @@ const Teacher = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-sm text-gray-600">{t('totalStudents')}</p>
-                    <p className="text-3xl font-bold text-gray-900">{mockStudentData.length}</p>
+                    <p className="text-3xl font-bold text-gray-900">{students.length}</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center">
                     <Users className="text-primary-600" size={24} />
@@ -112,7 +194,7 @@ const Teacher = () => {
                   </div>
                 </div>
                 <div className="text-sm text-gray-500">
-                  {language === 'en' ? 'Out of' : 'कुल में से'} {mockStudentData.length}
+                  {language === 'en' ? 'Out of' : 'कुल में से'} {students.length}
                 </div>
               </div>
             </div>
@@ -123,7 +205,7 @@ const Teacher = () => {
                 {language === 'en' ? 'Recent Activity' : 'हाल की गतिविधि'}
               </h3>
               <div className="space-y-4">
-                {mockStudentData.slice(0, 3).map((student) => (
+                {students.slice(0, 3).map((student) => (
                   <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center space-x-4">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center text-white font-semibold">
@@ -175,7 +257,7 @@ const Teacher = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockStudentData.map((student) => (
+                  {students.map((student) => (
                     <tr key={student.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-3">
@@ -221,7 +303,7 @@ const Teacher = () => {
                 : 'विभिन्न विषयों में कक्षा महारत का दृश्य प्रतिनिधित्व'}
             </p>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={mockHeatmapData}>
+              <BarChart data={heatmap}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="topic" tick={{ fill: '#6b7280' }} />
                 <YAxis tick={{ fill: '#6b7280' }} />
@@ -233,7 +315,7 @@ const Teacher = () => {
                   }}
                 />
                 <Bar dataKey="mastery" radius={[8, 8, 0, 0]}>
-                  {mockHeatmapData.map((entry, index) => (
+                  {heatmap.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={getHeatmapColor(entry.mastery)} />
                   ))}
                 </Bar>
@@ -268,7 +350,7 @@ const Teacher = () => {
                 ? 'AI-generated recommendations based on student performance'
                 : 'छात्र प्रदर्शन के आधार पर AI-जनित सिफारिशें'}
             </p>
-            {mockInterventions[language].map((intervention) => (
+            {interventions.map((intervention) => (
               <motion.div
                 key={intervention.id}
                 whileHover={{ scale: 1.02 }}

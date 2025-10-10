@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
+import PrivateRoute from './components/PrivateRoute';
 import FloatingHelp from './components/FloatingHelp';
 import Home from './pages/Home';
 import Student from './pages/Student';
@@ -26,8 +27,12 @@ function App() {
         <AnimatePresence mode="wait">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/student" element={<Student />} />
-            <Route path="/teacher" element={<Teacher />} />
+            <Route path="/student" element={<PrivateRoute role="student"><Student /></PrivateRoute>} />
+            <Route path="/student/login" element={<Student />} />
+            <Route path="/student/signup" element={<Student />} />
+            <Route path="/teacher" element={<PrivateRoute role="teacher"><Teacher /></PrivateRoute>} />
+            <Route path="/teacher/login" element={<Teacher />} />
+            <Route path="/teacher/signup" element={<Teacher />} />
             <Route path="/ai-tutor" element={<AITutor />} />
             <Route path="/doc-chat" element={<DocChat />} />
             <Route path="/agents" element={<Agents />} />

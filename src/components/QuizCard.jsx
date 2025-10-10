@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Lightbulb } from 'lucide-react';
 
@@ -6,6 +6,13 @@ const QuizCard = ({ question, onAnswer, showHint = false, language }) => {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [showHintText, setShowHintText] = useState(false);
+
+  // Reset local state whenever a new question arrives
+  useEffect(() => {
+    setSelectedAnswer(null);
+    setShowExplanation(false);
+    setShowHintText(false);
+  }, [question]);
 
   const handleSubmit = () => {
     if (selectedAnswer !== null) {

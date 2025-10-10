@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, Users } from 'lucide-react';
 import RoleCard from '../components/RoleCard';
@@ -7,6 +8,7 @@ import { useTranslation } from '../utils/translations';
 
 const Home = () => {
   const { language, setUserRole } = useAppState();
+  const navigate = useNavigate();
   const t = useTranslation(language);
 
   return (
@@ -47,28 +49,24 @@ const Home = () => {
           {t('selectRole')}
         </motion.h2>
 
-        {/* Role Cards */}
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-        >
-          <RoleCard
-            icon={GraduationCap}
-            title={t('imStudent')}
-            description={t('studentDesc')}
-            path="/student"
-            gradient="from-primary-500 to-primary-600"
-          />
-          <RoleCard
-            icon={Users}
-            title={t('imTeacher')}
-            description={t('teacherDesc')}
-            path="/teacher"
-            gradient="from-secondary-500 to-secondary-600"
-          />
-        </motion.div>
+        {/* Quick Auth Buttons (only options, no Get Started) */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button className="btn-primary" onClick={() => navigate('/student/login')}>
+              {language === 'en' ? 'Student Login' : 'छात्र लॉगिन'}
+            </button>
+            <button className="btn-secondary" onClick={() => navigate('/student/signup')}>
+              {language === 'en' ? 'Student Signup' : 'छात्र साइन अप'}
+            </button>
+            <button className="btn-primary" onClick={() => navigate('/teacher/login')}>
+              {language === 'en' ? 'Teacher Login' : 'शिक्षक लॉगिन'}
+            </button>
+            <button className="btn-secondary" onClick={() => navigate('/teacher/signup')}>
+              {language === 'en' ? 'Teacher Signup' : 'शिक्षक साइन अप'}
+            </button>
+          </div>
+        </div>
+        {/* Role cards removed to prevent navigation without login */}
 
         {/* Features Section */}
         <motion.div
