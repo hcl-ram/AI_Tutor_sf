@@ -1,4 +1,5 @@
 import os
+import json
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Literal
@@ -16,7 +17,7 @@ from recommendation_engine import generate_recommendations
 from ai_tutor import generate_answer_with_context, process_user_query
 from s3_handler import upload_bytes_to_s3
 from dynamo_handler import get_chat_history
-from rag_service import build_context_from_document, summarize_document
+from rag_service import build_context_from_document, summarize_document, get_bedrock_runtime_client
 
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
@@ -233,6 +234,130 @@ def tutor_llm_answer(req: LLMAnswerRequest, user=Depends(require_auth)):
     user_id = user.get("uid") or user.get("sub") or "anonymous"
     answer = process_user_query(user_id=user_id, user_message=req.question, attachment_path=req.attachment_path)
     return {"answer": answer}
+
+
+# =========================
+# Support Chat (Help & Support)
+# =========================
+
+class SupportAskRequest(BaseModel):
+    question: str
+    subject: str | None = None
+    topic: str | None = None
+
+
+@app.post("/support/ask")
+def support_ask(req: SupportAskRequest):
+    """Lightweight endpoint that proxies a user question to the Bedrock chat model.
+
+    This endpoint is deliberately unauthenticated so the floating help widget can work
+    on all pages. Harden/rate-limit as needed in production.
+    """
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+
+    client = get_bedrock_runtime_client()
+
+    # Resolve model id strictly from BEDROCK_MODEL_ID and derive family
+    model_id = os.getenv("BEDROCK_MODEL_ID", "").strip()
+    if not model_id:
+        raise HTTPException(status_code=500, detail="BEDROCK_MODEL_ID is not set in environment.")
+
+    system_instructions = (
+        "You are a concise and friendly product support assistant for an AI learning app. "
+        "Answer clearly in 2-5 sentences. If asked about account-specific data, respond that "
+        "you cannot access private data here and provide general guidance."
+    )
+    context_prefix = ""
+    if req.subject:
+        context_prefix += f"Subject: {req.subject}\n"
+    if req.topic:
+        context_prefix += f"Topic: {req.topic}\n"
+    prompt = f"{system_instructions}\n\n{context_prefix}User question: {question}\nAssistant:"
+
+    # Build payload depending on the model family
+    family = (model_id.split(".")[0].lower() if "." in model_id else model_id.lower())
+    payload = {}
+    if family == "anthropic":
+        # Distinguish Claude 3/3.5 (messages API) vs Claude v1/v2 (prompt API)
+        if "claude-3" in model_id or "claude-3-5" in model_id:
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt}
+                        ],
+                    }
+                ],
+                "max_tokens": 512,
+                "temperature": 0.3,
+            }
+        else:
+            # Claude v2 style
+            payload = {
+                "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
+                "max_tokens_to_sample": 512,
+                "temperature": 0.3,
+                "stop_sequences": ["\n\nHuman:"],
+            }
+    elif model_id.startswith("amazon.titan-text"):
+        payload = {
+            "inputText": prompt,
+            "textGenerationConfig": {
+                "maxTokenCount": 512,
+                "temperature": 0.3,
+                "topP": 0.9,
+            },
+        }
+    else:
+        # Sensible default: try Titan schema
+        payload = {
+            "inputText": prompt,
+            "textGenerationConfig": {
+                "maxTokenCount": 512,
+                "temperature": 0.3,
+                "topP": 0.9,
+            },
+        }
+    try:
+        resp = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(payload).encode("utf-8"),
+            contentType="application/json",
+            accept="application/json",
+        )
+        data = json.loads(resp["body"].read())
+        answer = ""
+        if family == "anthropic":
+            if "content" in data and isinstance(data["content"], list) and data["content"]:
+                # Claude 3 style
+                # content: [ {"type":"text","text":"..."}, ... ]
+                parts = []
+                for part in data["content"]:
+                    text = part.get("text") or part.get("content") or ""
+                    if text:
+                        parts.append(text)
+                answer = "\n".join(parts)
+            elif "completion" in data:
+                # Claude v2 style
+                answer = data.get("completion", "")
+        else:
+            if isinstance(data, dict) and "results" in data and data["results"]:
+                answer = data["results"][0].get("outputText", "")
+            elif "content" in data and isinstance(data["content"], list):
+                parts = []
+                for item in data["content"]:
+                    text = item.get("text") or item.get("content") or ""
+                    if text:
+                        parts.append(text)
+                answer = "\n".join(parts)
+        return {"answer": answer or "Sorry, I couldn't generate a response right now."}
+    except Exception as e:
+        # Surface detailed error for easier debugging in frontend
+        raise HTTPException(status_code=500, detail=f"Bedrock error: {e}")
 
 
 @app.post("/tutor/upload")
