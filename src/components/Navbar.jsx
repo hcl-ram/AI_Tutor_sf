@@ -13,8 +13,6 @@ const Navbar = () => {
 
   const navLinks = [
     { path: '/', label: t('home') },
-    { path: '/student', label: t('student') },
-    { path: '/teacher', label: t('teacher') },
     { path: '/ai-tutor', label: t('aiTutor') },
     { path: '/doc-chat', label: t('docChat') },
     { path: '/agents', label: t('behindScenes') },

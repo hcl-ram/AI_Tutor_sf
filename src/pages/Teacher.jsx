@@ -12,44 +12,7 @@ const Teacher = () => {
   const { language } = useAppState();
   const navigate = useNavigate();
   const location = useLocation();
-  const [auth, setAuth] = useState({ email: '', password: '', name: '' });
-  const [isSignup, setIsSignup] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-
-  React.useEffect(() => {
-    if (location.pathname.endsWith('/teacher/login')) {
-      setIsSignup(false);
-    } else if (location.pathname.endsWith('/teacher/signup')) {
-      setIsSignup(true);
-    }
-  }, [location.pathname]);
-
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const endpoint = isSignup ? '/auth/teacher/signup' : '/auth/teacher/login';
-      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
-      const res = await fetch(`${base}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isSignup ? { name: auth.name, email: auth.email, password: auth.password } : { email: auth.email, password: auth.password }
-        ),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || 'Authentication failed');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/teacher');
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+  // Authentication is now handled on Home page
   const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState('overview');
   const [students, setStudents] = useState([]);
@@ -88,28 +51,7 @@ const Teacher = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="max-w-7xl mx-auto">
-        {/* Auth Card */}
-        <div className="card mb-8 max-w-xl">
-          <h2 className="text-2xl font-display font-bold text-gray-900 mb-4">
-            {isSignup ? (language === 'en' ? 'Teacher Sign Up' : 'शिक्षक पंजीकरण') : (language === 'en' ? 'Teacher Login' : 'शिक्षक लॉगिन')}
-          </h2>
-          <form onSubmit={handleAuth} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {isSignup && (
-              <input className="input md:col-span-1" placeholder={language === 'en' ? 'Full name' : 'पूरा नाम'} value={auth.name} onChange={(e) => setAuth({ ...auth, name: e.target.value })} required />
-            )}
-            <input className="input md:col-span-1" type="email" placeholder="email@example.com" value={auth.email} onChange={(e) => setAuth({ ...auth, email: e.target.value })} required />
-            <input className="input md:col-span-1" type="password" placeholder={language === 'en' ? 'Password' : 'पासवर्ड'} value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} required />
-            {authError && <div className="text-red-600 text-sm md:col-span-3">{authError}</div>}
-            <div className="md:col-span-3 flex items-center gap-3">
-              <button type="submit" className="btn-primary" disabled={authLoading}>
-                {authLoading ? (language === 'en' ? 'Please wait...' : 'कृपया प्रतीक्षा करें...') : isSignup ? (language === 'en' ? 'Create account' : 'खाता बनाएँ') : (language === 'en' ? 'Login' : 'लॉगिन')}
-              </button>
-              <button type="button" className="text-primary-600 font-medium" onClick={() => setIsSignup(!isSignup)}>
-                {isSignup ? (language === 'en' ? 'Have an account? Login' : 'खाता है? लॉगिन करें') : (language === 'en' ? "Don't have an account? Sign up" : 'खाता नहीं? साइन अप करें')}
-              </button>
-            </div>
-          </form>
-        </div>
+        {/* Auth Card removed - now handled on Home page */}
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

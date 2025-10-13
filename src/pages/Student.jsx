@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronRight, RefreshCw, Brain } from 'lucide-react';
 // QuizCard removed from single-question flow; showing all questions at once
 import ProgressBar from '../components/ProgressBar';
 import useAppState from '../hooks/useAppState';
@@ -12,26 +12,13 @@ const Student = () => {
   const { language, updateStudentProgress } = useAppState();
   const navigate = useNavigate();
   const location = useLocation();
-  const [auth, setAuth] = useState({ email: '', password: '', name: '' });
-  const [isSignup, setIsSignup] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-
-  React.useEffect(() => {
-    if (location.pathname.endsWith('/student/login')) {
-      setIsSignup(false);
-      setStep(0);
-    } else if (location.pathname.endsWith('/student/signup')) {
-      setIsSignup(true);
-      setStep(0);
-    }
-  }, [location.pathname]);
+  // Authentication is now handled on Home page
   const t = useTranslation(language);
   
-  const [step, setStep] = useState(1); // 0: auth, 1: selection, 2: quiz, 3: practice
+  const [step, setStep] = useState(0); // 0: adaptive quiz button, 1: class selection, 2: subject selection, 3: chapter selection, 4: quiz, 5: practice
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('');
+  const [selectedChapter, setSelectedChapter] = useState('');
   const [difficulty, setDifficulty] = useState('medium');
   const [numQuestions, setNumQuestions] = useState(5);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -46,24 +33,48 @@ const Student = () => {
   const [selectedAnswers, setSelectedAnswers] = useState([]); // per-question selected option index or null
   const [selectedRationales, setSelectedRationales] = useState([]); // per-question free-text rationale
 
-  const classes = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
-  const subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi'];
-  const subjectTopicsMap = {
-    Mathematics: ['Algebra', 'Geometry', 'Trigonometry', 'Calculus', 'Statistics', 'Arithmetic'],
-    Science: ['Physics', 'Chemistry', 'Biology', 'Electricity', 'Light', 'Motion'],
-    English: ['Grammar', 'Comprehension', 'Writing Skills', 'Vocabulary'],
-    'Social Studies': ['History', 'Geography', 'Civics', 'Economics'],
-    Hindi: ['व्याकरण', 'गद्यांश', 'लेख', 'शब्दावली']
+  const classes = ['Class 9', 'Class 10', 'Class 11', 'Class 12'];
+  const subjects = ['Maths', 'Physics', 'Chemistry', 'Botany', 'Zoology'];
+  const subjectChaptersMap = {
+    'Maths': {
+      'Class 9': ['Number Systems', 'Polynomials', 'Coordinate Geometry', 'Linear Equations', 'Introduction to Euclid\'s Geometry', 'Lines and Angles', 'Triangles', 'Quadrilaterals', 'Areas', 'Circles', 'Constructions', 'Heron\'s Formula', 'Surface Areas and Volumes', 'Statistics', 'Probability'],
+      'Class 10': ['Real Numbers', 'Polynomials', 'Pair of Linear Equations', 'Quadratic Equations', 'Arithmetic Progressions', 'Triangles', 'Coordinate Geometry', 'Introduction to Trigonometry', 'Some Applications of Trigonometry', 'Circles', 'Constructions', 'Areas Related to Circles', 'Surface Areas and Volumes', 'Statistics', 'Probability'],
+      'Class 11': ['Sets', 'Relations and Functions', 'Trigonometric Functions', 'Principle of Mathematical Induction', 'Complex Numbers', 'Linear Inequalities', 'Permutations and Combinations', 'Binomial Theorem', 'Sequences and Series', 'Straight Lines', 'Conic Sections', 'Introduction to Three Dimensional Geometry', 'Limits and Derivatives', 'Mathematical Reasoning', 'Statistics', 'Probability'],
+      'Class 12': ['Relations and Functions', 'Inverse Trigonometric Functions', 'Matrices', 'Determinants', 'Continuity and Differentiability', 'Application of Derivatives', 'Integrals', 'Application of Integrals', 'Differential Equations', 'Vector Algebra', 'Three Dimensional Geometry', 'Linear Programming', 'Probability']
+    },
+    'Physics': {
+      'Class 9': ['Motion', 'Force and Laws of Motion', 'Gravitation', 'Work and Energy', 'Sound'],
+      'Class 10': ['Light - Reflection and Refraction', 'Human Eye and Colourful World', 'Electricity', 'Magnetic Effects of Electric Current', 'Sources of Energy'],
+      'Class 11': ['Physical World', 'Units and Measurements', 'Motion in a Straight Line', 'Motion in a Plane', 'Laws of Motion', 'Work, Energy and Power', 'System of Particles and Rotational Motion', 'Gravitation', 'Mechanical Properties of Solids', 'Mechanical Properties of Fluids', 'Thermal Properties of Matter', 'Thermodynamics', 'Kinetic Theory', 'Oscillations', 'Waves'],
+      'Class 12': ['Electric Charges and Fields', 'Electrostatic Potential and Capacitance', 'Current Electricity', 'Moving Charges and Magnetism', 'Magnetism and Matter', 'Electromagnetic Induction', 'Alternating Current', 'Electromagnetic Waves', 'Ray Optics and Optical Instruments', 'Wave Optics', 'Dual Nature of Radiation and Matter', 'Atoms', 'Nuclei', 'Semiconductor Electronics', 'Communication Systems']
+    },
+    'Chemistry': {
+      'Class 9': ['Matter in Our Surroundings', 'Is Matter Around Us Pure', 'Atoms and Molecules', 'Structure of the Atom'],
+      'Class 10': ['Chemical Reactions and Equations', 'Acids, Bases and Salts', 'Metals and Non-metals', 'Carbon and its Compounds', 'Periodic Classification of Elements'],
+      'Class 11': ['Some Basic Concepts of Chemistry', 'Structure of Atom', 'Classification of Elements and Periodicity in Properties', 'Chemical Bonding and Molecular Structure', 'States of Matter', 'Thermodynamics', 'Equilibrium', 'Redox Reactions', 'Hydrogen', 's-Block Elements', 'p-Block Elements', 'Organic Chemistry - Some Basic Principles and Techniques', 'Hydrocarbons', 'Environmental Chemistry'],
+      'Class 12': ['Solid State', 'Solutions', 'Electrochemistry', 'Chemical Kinetics', 'Surface Chemistry', 'General Principles and Processes of Isolation of Elements', 'p-Block Elements', 'd and f Block Elements', 'Coordination Compounds', 'Haloalkanes and Haloarenes', 'Alcohols, Phenols and Ethers', 'Aldehydes, Ketones and Carboxylic Acids', 'Amines', 'Biomolecules', 'Polymers', 'Chemistry in Everyday Life']
+    },
+    'Botany': {
+      'Class 9': ['The Fundamental Unit of Life', 'Tissues', 'Diversity in Living Organisms', 'Natural Resources'],
+      'Class 10': ['Life Processes', 'Control and Coordination', 'How do Organisms Reproduce', 'Heredity and Evolution', 'Our Environment'],
+      'Class 11': ['The Living World', 'Biological Classification', 'Plant Kingdom', 'Morphology of Flowering Plants', 'Anatomy of Flowering Plants', 'Cell - The Unit of Life', 'Cell Cycle and Cell Division', 'Transport in Plants', 'Mineral Nutrition', 'Photosynthesis in Higher Plants', 'Respiration in Plants', 'Plant Growth and Development'],
+      'Class 12': ['Reproduction in Organisms', 'Sexual Reproduction in Flowering Plants', 'Human Reproduction', 'Reproductive Health', 'Principles of Inheritance and Variation', 'Molecular Basis of Inheritance', 'Evolution', 'Human Health and Disease', 'Strategies for Enhancement in Food Production', 'Microbes in Human Welfare', 'Biotechnology - Principles and Processes', 'Biotechnology and its Applications', 'Organisms and Populations', 'Ecosystem', 'Biodiversity and Conservation', 'Environmental Issues']
+    },
+    'Zoology': {
+      'Class 9': ['The Fundamental Unit of Life', 'Tissues', 'Diversity in Living Organisms', 'Natural Resources'],
+      'Class 10': ['Life Processes', 'Control and Coordination', 'How do Organisms Reproduce', 'Heredity and Evolution', 'Our Environment'],
+      'Class 11': ['The Living World', 'Biological Classification', 'Animal Kingdom', 'Structural Organisation in Animals', 'Cell - The Unit of Life', 'Cell Cycle and Cell Division', 'Digestion and Absorption', 'Breathing and Exchange of Gases', 'Body Fluids and Circulation', 'Excretory Products and their Elimination', 'Locomotion and Movement', 'Neural Control and Coordination', 'Chemical Coordination and Integration'],
+      'Class 12': ['Reproduction in Organisms', 'Human Reproduction', 'Reproductive Health', 'Principles of Inheritance and Variation', 'Molecular Basis of Inheritance', 'Evolution', 'Human Health and Disease', 'Strategies for Enhancement in Food Production', 'Microbes in Human Welfare', 'Biotechnology - Principles and Processes', 'Biotechnology and its Applications', 'Organisms and Populations', 'Ecosystem', 'Biodiversity and Conservation', 'Environmental Issues']
+    }
   };
-  const defaultTopics = subjectTopicsMap[selectedSubject] || ['Algebra', 'Geometry', 'Trigonometry', 'Calculus'];
+  // Removed old subjectTopicsMap reference
   const difficulties = ['easy', 'medium', 'hard'];
 
   const [questions, setQuestions] = useState([]);
 
-  const handleContinue = async () => {
-    if (selectedClass && selectedSubject) {
-      updateStudentProgress({ class: selectedClass, subject: selectedSubject, topic: selectedTopic, difficulty, numQuestions });
-      setStep(2);
+  const startQuiz = async () => {
+    if (selectedClass && selectedSubject && selectedChapter) {
+      updateStudentProgress({ class: selectedClass, subject: selectedSubject, topic: selectedChapter, difficulty, numQuestions });
       try {
         setQuizError('');
         setQuizLoading(true);
@@ -78,7 +89,7 @@ const Student = () => {
           body: JSON.stringify({
             class_level: (selectedClass.match(/\d+/)?.[0] || '10'),
             subject: selectedSubject,
-            topic: selectedTopic || selectedSubject,
+            topic: selectedChapter,
             difficulty: difficulty,
             num_questions: Number(numQuestions) || 5
           })
@@ -107,31 +118,14 @@ const Student = () => {
     }
   };
 
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const endpoint = isSignup ? '/auth/student/signup' : '/auth/student/login';
-      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
-      const res = await fetch(`${base}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isSignup ? { name: auth.name, email: auth.email, password: auth.password } : { email: auth.email, password: auth.password }
-        ),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || 'Authentication failed');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/student');
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setAuthLoading(false);
+  // Auto-start quiz when step 4 is reached
+  React.useEffect(() => {
+    if (step === 4) {
+      startQuiz();
     }
-  };
+  }, [step]);
+
+  // Authentication handler removed - now handled on Home page
 
   const submitQuiz = async () => {
     if (!questions.length) return;
@@ -155,17 +149,17 @@ const Student = () => {
       setRecsError('');
       const token = localStorage.getItem('token');
       const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
-      const res = await fetch(`${base}/quiz/recommendations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          subject: selectedSubject,
-          topic: selectedTopic || selectedSubject,
-          class_level: (selectedClass.match(/\d+/)?.[0] || '10'),
-          difficulty: difficulty,
-          results: computedResults,
-        }),
-      });
+        const res = await fetch(`${base}/quiz/recommendations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            subject: selectedSubject,
+            topic: selectedChapter || selectedSubject,
+            class_level: (selectedClass.match(/\d+/)?.[0] || '10'),
+            difficulty: difficulty,
+            results: computedResults,
+          }),
+        });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || 'Failed to get recommendations');
       setRecs(data?.recommendations || null);
@@ -174,7 +168,7 @@ const Student = () => {
       setRecsError(err.message || 'Unable to load recommendations');
     } finally {
       setRecsLoading(false);
-      setStep(3);
+      setStep(5);
     }
   };
 
@@ -189,21 +183,21 @@ const Student = () => {
       <div className="max-w-4xl mx-auto">
         {/* Progress Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-center space-x-4 mb-4">
-            {[1, 2, 3].map((s) => (
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            {[0, 1, 2, 3, 4, 5].map((s) => (
               <div key={s} className="flex items-center">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold transition-all text-xs ${
                     step >= s
                       ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md'
                       : 'bg-gray-200 text-gray-500'
                   }`}
                 >
-                  {s}
+                  {s + 1}
                 </div>
-                {s < 3 && (
+                {s < 5 && (
                   <div
-                    className={`w-16 h-1 mx-2 rounded transition-all ${
+                    className={`w-12 h-1 mx-1 rounded transition-all ${
                       step > s ? 'bg-primary-500' : 'bg-gray-200'
                     }`}
                   />
@@ -211,39 +205,62 @@ const Student = () => {
               </div>
             ))}
           </div>
-          <div className="flex justify-between text-sm text-gray-600 max-w-md mx-auto">
-            <span>{language === 'en' ? 'Select' : 'चुनें'}</span>
-            <span>{language === 'en' ? 'Diagnostic' : 'निदान'}</span>
-            <span>{language === 'en' ? 'Practice' : 'अभ्यास'}</span>
+          <div className="flex justify-between text-xs text-gray-600 max-w-4xl mx-auto">
+            <span>{language === 'en' ? 'Start' : 'शुरू'}</span>
+            <span>{language === 'en' ? 'Class' : 'कक्षा'}</span>
+            <span>{language === 'en' ? 'Subject' : 'विषय'}</span>
+            <span>{language === 'en' ? 'Chapter' : 'अध्याय'}</span>
+            <span>{language === 'en' ? 'Quiz' : 'प्रश्नोत्तरी'}</span>
+            <span>{language === 'en' ? 'Results' : 'परिणाम'}</span>
           </div>
         </div>
 
-        {/* Step 0: Login/Signup */}
+        {/* Step 0: Adaptive Quiz Button */}
         {step === 0 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="card max-w-md mx-auto">
-            <h2 className="text-3xl font-display font-bold text-gray-900 mb-6 text-center">
-              {isSignup ? (language === 'en' ? 'Student Sign Up' : 'छात्र पंजीकरण') : (language === 'en' ? 'Student Login' : 'छात्र लॉगिन')}
-            </h2>
-            <form onSubmit={handleAuth} className="space-y-4">
-              {isSignup && (
-                <input className="input" placeholder={language === 'en' ? 'Full name' : 'पूरा नाम'} value={auth.name} onChange={(e) => setAuth({ ...auth, name: e.target.value })} required />
-              )}
-              <input className="input" type="email" placeholder="email@example.com" value={auth.email} onChange={(e) => setAuth({ ...auth, email: e.target.value })} required />
-              <input className="input" type="password" placeholder={language === 'en' ? 'Password' : 'पासवर्ड'} value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} required />
-              {authError && <div className="text-red-600 text-sm">{authError}</div>}
-              <button type="submit" className="w-full btn-primary" disabled={authLoading}>
-                {authLoading ? (language === 'en' ? 'Please wait...' : 'कृपया प्रतीक्षा करें...') : isSignup ? (language === 'en' ? 'Create account' : 'खाता बनाएँ') : (language === 'en' ? 'Login' : 'लॉगिन')}
-              </button>
-            </form>
-            <div className="mt-4 text-center text-sm text-gray-600">
-              <button className="text-primary-600 font-medium" onClick={() => setIsSignup(!isSignup)}>
-                {isSignup ? (language === 'en' ? 'Have an account? Login' : 'खाता है? लॉगिन करें') : (language === 'en' ? "Don't have an account? Sign up" : 'खाता नहीं? साइन अप करें')}
-              </button>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="card max-w-2xl mx-auto text-center"
+          >
+            <div className="mb-6">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center">
+                <Brain className="text-white" size={40} />
+              </div>
+              <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">
+                {t('adaptiveQuiz')}
+              </h2>
+              <p className="text-gray-600">
+                {language === 'en'
+                  ? 'Test your knowledge with AI-generated questions'
+                  : 'AI-जनित प्रश्नों के साथ अपने ज्ञान का परीक्षण करें'}
+              </p>
             </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="p-4 bg-primary-50 rounded-xl text-left">
+                <p className="font-medium text-gray-900 mb-2">
+                  {language === 'en' ? 'Difficulty' : 'कठिनाई'}: Adaptive
+                </p>
+                <p className="text-sm text-gray-600">
+                  {language === 'en'
+                    ? 'Questions will adjust based on your performance'
+                    : 'प्रश्न आपके प्रदर्शन के आधार पर समायोजित होंगे'}
+                </p>
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setStep(1)}
+              className="btn-primary w-full"
+            >
+              {t('startQuiz')}
+            </motion.button>
           </motion.div>
         )}
 
-        {/* Step 1: Class & Subject Selection */}
+        {/* Step 1: Class Selection */}
         {step === 1 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -251,7 +268,7 @@ const Student = () => {
             className="card max-w-2xl mx-auto"
           >
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-8 text-center">
-              {t('selectClass')}
+              {language === 'en' ? 'Select Your Class' : 'अपनी कक्षा चुनें'}
             </h2>
 
             {/* Class Selection */}
@@ -278,12 +295,43 @@ const Student = () => {
               </div>
             </div>
 
+            {/* Continue Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                if (selectedClass) {
+                  setStep(2); // Go to subject selection
+                }
+              }}
+              disabled={!selectedClass}
+              className={`w-full btn-primary flex items-center justify-center space-x-2 ${
+                !selectedClass ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <span>{language === 'en' ? 'Next' : 'अगला'}</span>
+              <ChevronRight size={20} />
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* Step 2: Subject Selection */}
+        {step === 2 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="card max-w-2xl mx-auto"
+          >
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-8 text-center">
+              {language === 'en' ? 'Select Subject' : 'विषय चुनें'}
+            </h2>
+
             {/* Subject Selection */}
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                {t('selectSubject')}
+                {language === 'en' ? 'Choose your subject' : 'अपना विषय चुनें'}
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {subjects.map((subject) => (
                   <motion.button
                     key={subject}
@@ -292,7 +340,7 @@ const Student = () => {
                     onClick={() => setSelectedSubject(subject)}
                     className={`p-4 rounded-xl border-2 font-medium transition-all ${
                       selectedSubject === subject
-                        ? 'border-secondary-500 bg-secondary-50 text-secondary-700'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -302,79 +350,107 @@ const Student = () => {
               </div>
             </div>
 
-            {/* Topic Selection */}
+            {/* Navigation Buttons */}
+            <div className="flex justify-between">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setStep(1)}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <ChevronRight size={20} className="rotate-180" />
+                <span>{language === 'en' ? 'Back' : 'वापस'}</span>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  if (selectedSubject) {
+                    setStep(3); // Go to chapter selection
+                  }
+                }}
+                disabled={!selectedSubject}
+                className={`btn-primary flex items-center space-x-2 ${
+                  !selectedSubject ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <span>{language === 'en' ? 'Next' : 'अगला'}</span>
+                <ChevronRight size={20} />
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step 3: Chapter Selection */}
+        {step === 3 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="card max-w-4xl mx-auto"
+          >
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-8 text-center">
+              {language === 'en' ? 'Select Chapter' : 'अध्याय चुनें'}
+            </h2>
+
+            {/* Chapter Selection */}
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                {language === 'en' ? 'Choose a topic' : 'एक विषय चुनें'}
+                {language === 'en' ? `Choose a chapter from ${selectedSubject}` : `${selectedSubject} से एक अध्याय चुनें`}
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                {defaultTopics.map((topic) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
+                {(subjectChaptersMap[selectedSubject]?.[selectedClass] || []).map((chapter) => (
                   <motion.button
-                    key={topic}
+                    key={chapter}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedTopic(topic)}
-                    className={`p-4 rounded-xl border-2 font-medium transition-all ${
-                      selectedTopic === topic
+                    onClick={() => setSelectedChapter(chapter)}
+                    className={`p-3 rounded-xl border-2 font-medium transition-all text-sm ${
+                      selectedChapter === chapter
                         ? 'border-accent-500 bg-accent-50 text-accent-700'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    {topic}
+                    {chapter}
                   </motion.button>
                 ))}
               </div>
             </div>
 
-            {/* Difficulty and Number of Questions */}
-            <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {language === 'en' ? 'Difficulty' : 'कठिनाई स्तर'}
-                </label>
-                <select
-                  className="input"
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  {difficulties.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {language === 'en' ? 'Number of questions' : 'प्रश्नों की संख्या'}
-                </label>
-                <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={numQuestions}
-                  onChange={(e) => setNumQuestions(e.target.value)}
-                />
-              </div>
-            </div>
+            {/* Navigation Buttons */}
+            <div className="flex justify-between">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setStep(2)}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <ChevronRight size={20} className="rotate-180" />
+                <span>{language === 'en' ? 'Back' : 'वापस'}</span>
+              </motion.button>
 
-            {/* Continue Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleContinue}
-              disabled={!selectedClass || !selectedSubject}
-              className={`w-full btn-primary flex items-center justify-center space-x-2 ${
-                !selectedClass || !selectedSubject ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              <span>{t('continue')}</span>
-              <ChevronRight size={20} />
-            </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  if (selectedChapter) {
+                    setStep(4); // Go to quiz
+                  }
+                }}
+                disabled={!selectedChapter}
+                className={`btn-primary flex items-center space-x-2 ${
+                  !selectedChapter ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <span>{language === 'en' ? 'Start Quiz' : 'प्रश्नोत्तरी शुरू करें'}</span>
+                <ChevronRight size={20} />
+              </motion.button>
+            </div>
           </motion.div>
         )}
 
-        {/* Step 2: Diagnostic Quiz */}
-        {step === 2 && (
+        {/* Step 4: Adaptive Quiz */}
+        {step === 4 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -382,9 +458,30 @@ const Student = () => {
           >
             <div className="text-center mb-8">
               <h2 className="text-3xl font-display font-bold text-gray-900 mb-2">
-                {t('diagnosticQuiz')}
+                {language === 'en' ? 'Adaptive Quiz' : 'अनुकूली प्रश्नोत्तरी'}
               </h2>
-              <p className="text-gray-600">{t('quizInstructions')}</p>
+              <div className="mb-4 p-4 bg-primary-50 rounded-xl">
+                <p className="text-sm text-gray-600 mb-2">
+                  {language === 'en' ? 'Quiz Details:' : 'प्रश्नोत्तरी विवरण:'}
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 text-sm">
+                  <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full">
+                    {selectedClass}
+                  </span>
+                  <span className="px-3 py-1 bg-secondary-100 text-secondary-700 rounded-full">
+                    {selectedSubject}
+                  </span>
+                  <span className="px-3 py-1 bg-accent-100 text-accent-700 rounded-full">
+                    {selectedChapter}
+                  </span>
+                </div>
+              </div>
+              <p className="text-gray-600">
+                {language === 'en' 
+                  ? 'Answer the questions below. The difficulty will adapt based on your performance.'
+                  : 'नीचे दिए गए प्रश्नों के उत्तर दें। कठिनाई आपके प्रदर्शन के आधार पर समायोजित होगी।'
+                }
+              </p>
               <div className="mt-4 flex items-center justify-center space-x-4 text-sm">
                 <span className="text-gray-500">
                   {language === 'en' ? 'Question' : 'प्रश्न'} {questions.length ? currentQuestionIndex + 1 : 0} / {questions.length}
@@ -476,8 +573,8 @@ const Student = () => {
           </motion.div>
         )}
 
-        {/* Step 3: Adaptive Practice */}
-        {step === 3 && (
+        {/* Step 5: Adaptive Practice */}
+        {step === 5 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
