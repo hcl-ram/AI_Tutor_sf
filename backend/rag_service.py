@@ -161,8 +161,16 @@ def get_boto3_session():
     if _boto3_session is not None:
         return _boto3_session
     profile = os.getenv("AWS_PROFILE")
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     if profile:
         _boto3_session = boto3.Session(profile_name=profile, region_name=AWS_REGION)
+    elif aws_access_key and aws_secret:
+        _boto3_session = boto3.Session(
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret,
+            region_name=AWS_REGION,
+        )
     else:
         # Falls back to env vars from dotenv or instance role
         _boto3_session = boto3.Session(region_name=AWS_REGION)

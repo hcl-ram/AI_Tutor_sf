@@ -11,6 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from jose import jwt
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except Exception:
+    _load_dotenv = None  # type: ignore
 
 from quiz_generator import generate_quiz
 from recommendation_engine import generate_recommendations
@@ -23,6 +27,9 @@ from rag_service import build_context_from_document, summarize_document, get_bed
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
 JWT_ALG = os.getenv("JWT_ALG", "HS256")
 JWT_EXPIRE_MIN = int(os.getenv("JWT_EXPIRE_MIN", "60"))
+if _load_dotenv is not None:
+    _load_dotenv(os.getenv("ENV_FILE", ".env"))
+
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 
@@ -359,6 +366,123 @@ def support_ask(req: SupportAskRequest):
         # Surface detailed error for easier debugging in frontend
         raise HTTPException(status_code=500, detail=f"Bedrock error: {e}")
 
+
+# =========================
+# Flashcards Generation
+# =========================
+
+class FlashcardsRequest(BaseModel):
+    subject: str
+    topic: str
+    num_cards: int = 6
+
+
+@app.post("/tutor/flashcards")
+def tutor_flashcards(req: FlashcardsRequest):
+    subject = (req.subject or "").strip()
+    topic = (req.topic or "").strip()
+    if not subject or not topic:
+        raise HTTPException(status_code=400, detail="subject and topic are required")
+
+    client = get_bedrock_runtime_client()
+    model_id = os.getenv("BEDROCK_MODEL_ID", "").strip()
+    if not model_id:
+        raise HTTPException(status_code=500, detail="BEDROCK_MODEL_ID is not set in environment.")
+
+    family = (model_id.split(".")[0].lower() if "." in model_id else model_id.lower())
+    system = (
+        "You generate concise educational flashcards as JSON. Each card has 'front' and 'back'. "
+        "Front is a question or term; back is a clear, student-friendly answer."
+    )
+    instruction = (
+        f"Create {max(2, min(20, req.num_cards))} flashcards for Subject: {subject}, Topic: {topic}. "
+        "Return ONLY valid JSON array like: [{\"front\":\"...\",\"back\":\"...\"}]."
+    )
+    prompt = f"{system}\n\n{instruction}"
+
+    if family == "anthropic":
+        if "claude-3" in model_id or "claude-3-5" in model_id:
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": prompt}]}
+                ],
+                "max_tokens": 1024,
+                "temperature": 0.3,
+            }
+        else:
+            payload = {
+                "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
+                "max_tokens_to_sample": 1024,
+                "temperature": 0.3,
+                "stop_sequences": ["\n\nHuman:"],
+            }
+    else:
+        payload = {
+            "inputText": prompt,
+            "textGenerationConfig": {
+                "maxTokenCount": 1024,
+                "temperature": 0.3,
+                "topP": 0.9,
+            },
+        }
+
+    try:
+        resp = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(payload).encode("utf-8"),
+            contentType="application/json",
+            accept="application/json",
+        )
+        data = json.loads(resp["body"].read())
+        if family == "anthropic":
+            if "content" in data and isinstance(data["content"], list) and data["content"]:
+                text = "\n".join([part.get("text") or part.get("content") or "" for part in data["content"]])
+            else:
+                text = data.get("completion", "")
+        else:
+            if isinstance(data, dict) and "results" in data and data["results"]:
+                text = data["results"][0].get("outputText", "")
+            else:
+                text = ""
+
+        cards = []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                for it in parsed:
+                    front = (it.get("front") or "").strip()
+                    back = (it.get("back") or "").strip()
+                    if front and back:
+                        cards.append({"front": front, "back": back})
+        except Exception:
+            pass
+
+        if not cards:
+            # Fallback: naive split by double newline
+            parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+            for part in parts[:req.num_cards]:
+                chunks = part.split("\n", 1)
+                if len(chunks) == 2:
+                    cards.append({"front": chunks[0].strip(), "back": chunks[1].strip()})
+
+        if not cards:
+            raise RuntimeError("LLM did not return flashcards")
+
+        return {"flashcards": cards[: req.num_cards]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Fallback to simple locally generated flashcards so the UI still works
+        fallback = [
+            {"front": f"Key concept in {topic}?", "back": f"A fundamental idea from {subject} - {topic}."},
+            {"front": f"Define {topic}", "back": f"Brief definition of {topic} in {subject}."},
+            {"front": f"Example problem in {topic}", "back": f"A short example related to {topic}."},
+            {"front": f"Common mistake in {topic}", "back": f"A typical error learners make in {topic}."},
+            {"front": f"Tip for {topic}", "back": f"A practical tip to remember for {topic}."},
+            {"front": f"Why {topic} matters", "back": f"Where {topic} is used in real life."},
+        ][: req.num_cards]
+        return {"flashcards": fallback, "warning": f"Bedrock error: {e}"}
 
 @app.post("/tutor/upload")
 async def tutor_upload(file: UploadFile = File(...), user=Depends(require_auth)):

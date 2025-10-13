@@ -12,6 +12,11 @@ const AITutor = () => {
   const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState('flashcards');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [subject, setSubject] = useState('');
+  const [topic, setTopic] = useState('');
+  const [cards, setCards] = useState(mockFlashcards[language]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [errorText, setErrorText] = useState('');
   const [noteContent, setNoteContent] = useState('');
 
   const tabs = [
@@ -21,7 +26,7 @@ const AITutor = () => {
     { id: 'plan', label: t('studyPlan'), icon: Calendar },
   ];
 
-  const flashcards = mockFlashcards[language];
+  const flashcards = cards;
   const studyPlan = mockStudyPlan[language];
 
   const handleNextCard = () => {
@@ -88,6 +93,72 @@ const AITutor = () => {
             animate={{ opacity: 1, x: 0 }}
             className="space-y-6"
           >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <select
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none text-sm"
+              >
+                <option value="">Select subject...</option>
+                {['Math','Science','English','History','Computer Science'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <select
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none text-sm"
+              >
+                <option value="">Select topic...</option>
+                {(subject === 'Math' ? ['Algebra','Geometry','Trigonometry','Calculus','Statistics','Arithmetic'] :
+                  subject === 'Science' ? ['Physics','Chemistry','Biology','Photosynthesis','Ecology'] :
+                  subject === 'English' ? ['Grammar','Comprehension','Writing','Vocabulary'] :
+                  subject === 'History' ? ['Ancient','Medieval','Modern','World Wars'] :
+                  subject === 'Computer Science' ? ['Programming Basics','Data Structures','Algorithms','Databases'] : []
+                ).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                disabled={!subject || !topic || isGenerating}
+                onClick={async () => {
+                  if (!subject || !topic) return;
+                  setIsGenerating(true);
+                  setErrorText('');
+                  try {
+                    const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:8002';
+                    const resp = await fetch(`${apiBase}/tutor/flashcards`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        // public endpoint; no auth required
+                      },
+                      body: JSON.stringify({ subject, topic, num_cards: 6 })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : 'Server error');
+                    const newCards = Array.isArray(data?.flashcards) && data.flashcards.length
+                      ? data.flashcards
+                      : mockFlashcards[language];
+                    setCards(newCards);
+                    setCurrentCardIndex(0);
+                  } catch (err) {
+                    const msg = err?.message?.toString?.() || 'Failed to generate flashcards.';
+                    setErrorText(msg);
+                  } finally {
+                    setIsGenerating(false);
+                  }
+                }}
+                className={`btn-primary ${isGenerating ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {isGenerating ? (language === 'en' ? 'Generating...' : 'बना रहा है...') : t('generateFlashcards')}
+              </motion.button>
+            </div>
+
+            {errorText && (
+              <div className="text-center text-sm text-red-600">{errorText}</div>
+            )}
+
             <div className="text-center mb-4">
               <p className="text-sm text-gray-600">
                 {language === 'en' ? 'Card' : 'कार्ड'} {currentCardIndex + 1} / {flashcards.length}
@@ -131,15 +202,7 @@ const AITutor = () => {
               </motion.button>
             </div>
 
-            <div className="text-center mt-6">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="btn-secondary"
-              >
-                {t('generateFlashcards')}
-              </motion.button>
-            </div>
+            
           </motion.div>
         )}
 
