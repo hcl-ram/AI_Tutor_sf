@@ -297,7 +297,9 @@ export const uploadDocument = async (file) => {
         success: true,
         documentId: "doc_" + Date.now(),
         fileName: file.name,
-        pageCount: 10
+        pageCount: 10,
+        // Provide a mock s3Key so backend endpoints can work in dev
+        s3Key: "mock/sample.txt"
       });
     }, 2000);
   });

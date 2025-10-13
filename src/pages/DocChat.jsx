@@ -78,22 +78,33 @@ const DocChat = () => {
 
       setMessages([...messages, userMessage]);
       setInputMessage('');
-      // Call backend RAG answer endpoint
+      // Call backend LLM-only answer endpoint (no RAG)
       try {
         const token = localStorage.getItem('token');
         const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
-        const s3Key = uploadedDocument?.s3Key || uploadedDocument?.documentId; // prefer s3Key
-        const res = await fetch(`${base}/tutor/rag-answer`, {
+        const res = await fetch(`${base}/tutor/llm-answer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ question: userMessage.content, s3_key: s3Key })
+          body: JSON.stringify({ question: userMessage.content })
         });
         const data = await res.json();
+        let answerText = data?.answer || '';
+        let refs = [];
+        // Frontend fallback: if answer is empty, try using the summary as context
+        if (!answerText) {
+          const fallbackRes = await fetch(`${base}/tutor/answer-with-context`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ question: userMessage.content, context: docSummary || '' })
+          });
+          const fbData = await fallbackRes.json();
+          answerText = fbData?.answer || '';
+        }
         const aiMessage = {
           id: userMessage.id + 1,
           type: 'ai',
-          content: data?.answer || (language === 'en' ? 'No answer available.' : 'उत्तर उपलब्ध नहीं है।'),
-          references: (data?.sources || []).map((s) => `${s.source} (${s.score})`)
+          content: answerText || (language === 'en' ? 'No answer available.' : 'उत्तर उपलब्ध नहीं है।'),
+          references: refs
         };
         setMessages((prev) => [...prev, aiMessage]);
       } catch (e) {
@@ -188,9 +199,9 @@ const DocChat = () => {
           </motion.div>
         ) : (
           /* Chat Interface */
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex justify-center">
             {/* Document Viewer Panel */}
-            <motion.div
+            {/* <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="card h-[600px] flex flex-col"
@@ -230,13 +241,13 @@ const DocChat = () => {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </motion.div> */}
 
             {/* Chat Panel */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="card h-[600px] flex flex-col"
+              className="card h-[600px] flex flex-col w-full max-w-3xl mx-auto lg:max-w-4xl"
             >
               <div className="mb-4 pb-4 border-b border-gray-200">
                 <h3 className="font-semibold text-lg">{t('chatWithDoc')}</h3>

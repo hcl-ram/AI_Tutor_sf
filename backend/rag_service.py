@@ -223,14 +223,22 @@ def build_context_from_document(question: str, s3_key: str, top_k: int = 5) -> T
 
     Returns a tuple of (context, sources).
     """
-    client = s3_client()
-    try:
-        obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-        body: bytes = obj["Body"].read()
-    except Exception as e:
-        raise RuntimeError(f"Failed to fetch document from S3: {e}")
+    # Dev fallback for mock keys: avoid S3 and use embedded sample text
+    if s3_key.startswith("mock/"):
+        text = (
+            "This is a sample document used for development and testing. "
+            "It contains sentences about education, mathematics (Pythagorean theorem), science (photosynthesis), "
+            "and general facts like the capital of India being New Delhi."
+        )
+    else:
+        client = s3_client()
+        try:
+            obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            body: bytes = obj["Body"].read()
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch document from S3: {e}")
 
-    text = load_object_bytes_to_text(s3_key, body)
+        text = load_object_bytes_to_text(s3_key, body)
     chunks = chunk_text(text)
     if not chunks:
         return "", []
@@ -253,14 +261,20 @@ def build_context_from_document(question: str, s3_key: str, top_k: int = 5) -> T
 
 def summarize_document(s3_key: str, max_sections: int = 6) -> str:
     """Summarize a document by selecting representative chunks and asking the LLM to summarize."""
-    client = s3_client()
-    try:
-        obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-        body: bytes = obj["Body"].read()
-    except Exception as e:
-        raise RuntimeError(f"Failed to fetch document from S3: {e}")
+    if s3_key.startswith("mock/"):
+        text = (
+            "This is a sample document used for development and testing. It mentions education, "
+            "mathematics (Pythagorean theorem), science (photosynthesis), and New Delhi."
+        )
+    else:
+        client = s3_client()
+        try:
+            obj = client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            body: bytes = obj["Body"].read()
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch document from S3: {e}")
 
-    text = load_object_bytes_to_text(s3_key, body)
+        text = load_object_bytes_to_text(s3_key, body)
     chunks = chunk_text(text)
     if not chunks:
         return ""

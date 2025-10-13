@@ -5,7 +5,7 @@ from typing import List, Literal
 
 import bcrypt
 import boto3
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -13,7 +13,9 @@ from jose import jwt
 
 from quiz_generator import generate_quiz
 from recommendation_engine import generate_recommendations
-from ai_tutor import generate_answer_with_context
+from ai_tutor import generate_answer_with_context, process_user_query
+from s3_handler import upload_bytes_to_s3
+from dynamo_handler import get_chat_history
 from rag_service import build_context_from_document, summarize_document
 
 
@@ -186,8 +188,13 @@ def tutor_rag_answer(req: TutorRAGRequest, user=Depends(require_auth)):
         raise HTTPException(status_code=400, detail=f"Failed to build context: {e}")
 
     if not context:
-        # Still call model with an empty context to return a safe message
-        answer = generate_answer_with_context(req.question, "")
+        # Fallback 1: try to summarize document and use as context
+        try:
+            summary_ctx = summarize_document(req.s3_key)
+        except Exception:
+            summary_ctx = ""
+        # Fallback 2: call LLM with whatever minimal context we have
+        answer = generate_answer_with_context(req.question, summary_ctx or "")
         return {"answer": answer, "sources": []}
 
     answer = generate_answer_with_context(req.question, context)
@@ -201,6 +208,56 @@ def tutor_doc_summary(req: DocSummaryRequest, user=Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to summarize: {e}")
     return {"summary": summary}
+
+
+# Fallback endpoint: directly generate answer from provided raw context (frontend may pass summary)
+class AnswerWithContextRequest(BaseModel):
+    question: str
+    context: str
+
+
+@app.post("/tutor/answer-with-context")
+def tutor_answer_with_context(req: AnswerWithContextRequest, user=Depends(require_auth)):
+    answer = generate_answer_with_context(req.question, req.context or "")
+    return {"answer": answer, "sources": []}
+
+
+# Pure LLM answer endpoint: bypass RAG and answer directly
+class LLMAnswerRequest(BaseModel):
+    question: str
+    attachment_path: str | None = None
+
+
+@app.post("/tutor/llm-answer")
+def tutor_llm_answer(req: LLMAnswerRequest, user=Depends(require_auth)):
+    user_id = user.get("uid") or user.get("sub") or "anonymous"
+    answer = process_user_query(user_id=user_id, user_message=req.question, attachment_path=req.attachment_path)
+    return {"answer": answer}
+
+
+@app.post("/tutor/upload")
+async def tutor_upload(file: UploadFile = File(...), user=Depends(require_auth)):
+    user_id = user.get("uid") or user.get("sub") or "anonymous"
+    try:
+        file_bytes = await file.read()
+        s3_key = upload_bytes_to_s3(file_bytes, user_id=user_id, file_name=file.filename)
+        if not s3_key:
+            raise HTTPException(status_code=500, detail="S3 upload failed")
+        return {"ok": True, "s3Key": s3_key, "fileName": file.filename, "pageCount": 0}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tutor/chat-history")
+def tutor_chat_history(user=Depends(require_auth)):
+    user_id = user.get("uid") or user.get("sub") or "anonymous"
+    try:
+        items = get_chat_history(user_id)
+        return {"history": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =========================

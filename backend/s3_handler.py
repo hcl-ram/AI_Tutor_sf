@@ -33,3 +33,18 @@ def upload_file_to_s3(file_path: str, user_id: str) -> str:
     except Exception as e:
         print(f"❌ Failed to upload file: {e}")
         return None
+
+
+def upload_bytes_to_s3(file_bytes: bytes, user_id: str, file_name: str) -> str:
+    """Uploads bytes to S3 and returns the S3 key (not public URL)."""
+    if not file_bytes or not file_name or not user_id:
+        return None
+
+    s3_key = f"{user_id}/{file_name}"
+    try:
+        s3.put_object(Bucket=S3_BUCKET_NAME, Key=s3_key, Body=file_bytes)
+        print(f"✅ Uploaded bytes to S3: s3://{S3_BUCKET_NAME}/{s3_key}")
+        return s3_key
+    except Exception as e:
+        print(f"❌ Failed to upload bytes: {e}")
+        return None
