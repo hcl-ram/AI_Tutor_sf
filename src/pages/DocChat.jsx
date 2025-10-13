@@ -24,7 +24,7 @@ const DocChat = () => {
         setUploadedDocument(result);
         // Fetch summary for preview
         const token = localStorage.getItem('token');
-        const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
         if (result?.s3Key) {
           setLoadingSummary(true);
           try {
@@ -78,27 +78,57 @@ const DocChat = () => {
 
       setMessages([...messages, userMessage]);
       setInputMessage('');
-      // Call backend LLM-only answer endpoint (no RAG)
+      // Prefer RAG with the uploaded document; fallback to summary-context, then to plain LLM
       try {
         const token = localStorage.getItem('token');
-        const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
-        const res = await fetch(`${base}/tutor/llm-answer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ question: userMessage.content })
-        });
-        const data = await res.json();
-        let answerText = data?.answer || '';
+        const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        let answerText = '';
         let refs = [];
-        // Frontend fallback: if answer is empty, try using the summary as context
-        if (!answerText) {
-          const fallbackRes = await fetch(`${base}/tutor/answer-with-context`, {
+
+        // 1) RAG using document key
+        try {
+          const ragRes = await fetch(`${base}/tutor/rag-answer`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ question: userMessage.content, context: docSummary || '' })
+            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+            body: JSON.stringify({ question: userMessage.content, s3_key: uploadedDocument?.s3Key })
           });
-          const fbData = await fallbackRes.json();
-          answerText = fbData?.answer || '';
+          const ragData = await ragRes.json();
+          if (ragRes.ok) {
+            answerText = ragData?.answer || '';
+            refs = (ragData?.sources || []).map(s => `${s.source} (score ${s.score})`);
+          }
+        } catch {}
+
+        // 2) If empty, ensure we have a summary then use summary context
+        if (!answerText) {
+          let summaryToUse = docSummary;
+          if (!summaryToUse && uploadedDocument?.s3Key) {
+            try {
+              const sres = await fetch(`${base}/tutor/doc-summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+                body: JSON.stringify({ s3_key: uploadedDocument.s3Key })
+              });
+              const sdata = await sres.json();
+              if (sres.ok) summaryToUse = sdata?.summary || '';
+            } catch {}
+          }
+          try {
+            const ctxRes = await fetch(`${base}/tutor/answer-with-context`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+              body: JSON.stringify({ question: userMessage.content, context: summaryToUse || '' })
+            });
+            const ctxData = await ctxRes.json();
+            if (ctxRes.ok) answerText = ctxData?.answer || '';
+          } catch {}
+        }
+
+        // 3) Final safety: generic helpful fallback if still empty
+        if (!answerText) {
+          answerText = language === 'en'
+            ? 'Sorry, I could not find an answer in the document. Try rephrasing or asking more specifically.'
+            : 'क्षमा करें, मुझे दस्तावेज़ में उत्तर नहीं मिला। कृपया अपना प्रश्न पुनः वाक्यांशित करें या अधिक विशिष्ट पूछें।';
         }
         const aiMessage = {
           id: userMessage.id + 1,
@@ -276,18 +306,7 @@ const DocChat = () => {
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
-                        {message.references && (
-                          <div className="mt-2 pt-2 border-t border-gray-300">
-                            <p className="text-xs opacity-75">
-                              {language === 'en' ? 'References:' : 'संदर्भ:'}
-                            </p>
-                            {message.references.map((ref, idx) => (
-                              <p key={idx} className="text-xs opacity-75">
-                                • {ref}
-                              </p>
-                            ))}
-                          </div>
-                        )}
+                        {/* References removed per request */}
                       </div>
                     </motion.div>
                   ))}

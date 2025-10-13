@@ -251,20 +251,34 @@ def build_context_from_document(question: str, s3_key: str, top_k: int = 5) -> T
     if not chunks:
         return "", []
 
-    # Embed chunks and question, score by dot product (cosine-like, as we unit-normalize)
-    import numpy as np
-    chunk_vectors = embed_texts(chunks)
-    q_vec = embed_texts([question])[0]
-    q = np.array(q_vec, dtype="float32")
-    matrix = np.array(chunk_vectors, dtype="float32")
-    # Assume normalized by embed_texts
-    scores = matrix @ q
-    top_k = max(1, min(top_k, len(chunks)))
-    top_indices = np.argsort(-scores)[:top_k]
-    selected = [chunks[int(i)] for i in top_indices]
-    context = "\n\n".join(selected)
-    sources = [{"source": s3_key, "score": f"{float(scores[int(i)]):.4f}"} for i in top_indices]
-    return context, sources
+    # Try semantic ranking via Bedrock embeddings; fallback to simple keyword ranking
+    try:
+        import numpy as np
+        chunk_vectors = embed_texts(chunks)
+        q_vec = embed_texts([question])[0]
+        q = np.array(q_vec, dtype="float32")
+        matrix = np.array(chunk_vectors, dtype="float32")
+        scores = matrix @ q  # cosine-like because vectors are unit-normalized
+        top_k = max(1, min(top_k, len(chunks)))
+        top_indices = np.argsort(-scores)[:top_k]
+        selected = [chunks[int(i)] for i in top_indices]
+        context = "\n\n".join(selected)
+        sources = [{"source": s3_key, "score": f"{float(scores[int(i)]):.4f}"} for i in top_indices]
+        return context, sources
+    except Exception:
+        # Fallback: rank by simple keyword overlap; if tie, preserve order
+        q_words = [w.lower() for w in question.split() if len(w) > 2]
+        def score_chunk(c: str) -> int:
+            lc = c.lower()
+            return sum(lc.count(w) for w in q_words) or (1 if any(q_words) else 0)
+        scored = [(score_chunk(c), idx, c) for idx, c in enumerate(chunks)]
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        top_k = max(1, min(top_k, len(scored)))
+        picked = scored[:top_k]
+        selected = [c for _, _, c in picked]
+        context = "\n\n".join(selected)
+        sources = [{"source": s3_key, "score": str(s)} for s, _, _ in picked]
+        return context, sources
 
 
 def summarize_document(s3_key: str, max_sections: int = 6) -> str:

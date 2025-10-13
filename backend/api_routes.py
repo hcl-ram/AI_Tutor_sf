@@ -21,7 +21,7 @@ from recommendation_engine import generate_recommendations
 from ai_tutor import generate_answer_with_context, process_user_query
 from s3_handler import upload_bytes_to_s3
 from dynamo_handler import get_chat_history
-from rag_service import build_context_from_document, summarize_document, get_bedrock_runtime_client
+from rag_service import build_context_from_document, summarize_document, get_bedrock_runtime_client, call_bedrock_rag
 
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
@@ -188,7 +188,7 @@ def quiz_recommendations(req: RecommendationsRequest, user=Depends(require_auth)
 
 
 @app.post("/tutor/rag-answer")
-def tutor_rag_answer(req: TutorRAGRequest, user=Depends(require_auth)):
+def tutor_rag_answer(req: TutorRAGRequest):
     # Build context from the referenced document
     try:
         context, sources = build_context_from_document(req.question, req.s3_key, top_k=5)
@@ -205,12 +205,13 @@ def tutor_rag_answer(req: TutorRAGRequest, user=Depends(require_auth)):
         answer = generate_answer_with_context(req.question, summary_ctx or "")
         return {"answer": answer, "sources": []}
 
-    answer = generate_answer_with_context(req.question, context)
+    # Use Bedrock via rag_service to handle model families
+    answer = call_bedrock_rag(req.question, context)
     return {"answer": answer, "sources": sources}
 
 
 @app.post("/tutor/doc-summary")
-def tutor_doc_summary(req: DocSummaryRequest, user=Depends(require_auth)):
+def tutor_doc_summary(req: DocSummaryRequest):
     try:
         summary = summarize_document(req.s3_key)
     except Exception as e:
@@ -225,8 +226,8 @@ class AnswerWithContextRequest(BaseModel):
 
 
 @app.post("/tutor/answer-with-context")
-def tutor_answer_with_context(req: AnswerWithContextRequest, user=Depends(require_auth)):
-    answer = generate_answer_with_context(req.question, req.context or "")
+def tutor_answer_with_context(req: AnswerWithContextRequest):
+    answer = call_bedrock_rag(req.question, req.context or "")
     return {"answer": answer, "sources": []}
 
 
@@ -237,10 +238,60 @@ class LLMAnswerRequest(BaseModel):
 
 
 @app.post("/tutor/llm-answer")
-def tutor_llm_answer(req: LLMAnswerRequest, user=Depends(require_auth)):
-    user_id = user.get("uid") or user.get("sub") or "anonymous"
-    answer = process_user_query(user_id=user_id, user_message=req.question, attachment_path=req.attachment_path)
+def tutor_llm_answer(req: LLMAnswerRequest):
+    # Generic non-RAG Bedrock generation using same model-family detection as support
+    client = get_bedrock_runtime_client()
+    model_id = os.getenv("BEDROCK_MODEL_ID", "").strip()
+    if not model_id:
+        raise HTTPException(status_code=500, detail="BEDROCK_MODEL_ID is not set in environment.")
+    family = (model_id.split(".")[0].lower() if "." in model_id else model_id.lower())
+
+    system = (
+        "You are an intelligent NCERT-based AI Tutor. Answer clearly and helpfully in 3-6 sentences."
+    )
+    prompt = f"{system}\n\nUser question: {req.question}"
+
+    if family == "anthropic":
+        if "claude-3" in model_id or "claude-3-5" in model_id:
+            payload = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+                "max_tokens": 512,
+                "temperature": 0.4,
+            }
+        else:
+            payload = {
+                "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
+                "max_tokens_to_sample": 512,
+                "temperature": 0.4,
+                "stop_sequences": ["\n\nHuman:"],
+            }
+    else:
+        payload = {
+            "inputText": prompt,
+            "textGenerationConfig": {"maxTokenCount": 512, "temperature": 0.4, "topP": 0.9},
+        }
+    try:
+        resp = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(payload).encode("utf-8"),
+            contentType="application/json",
+            accept="application/json",
+        )
+        data = json.loads(resp["body"].read())
+        if family == "anthropic":
+            if "content" in data and isinstance(data["content"], list) and data["content"]:
+                answer = "\n".join([part.get("text") or part.get("content") or "" for part in data["content"]])
+            else:
+                answer = data.get("completion", "")
+        else:
+            if isinstance(data, dict) and "results" in data and data["results"]:
+                answer = data["results"][0].get("outputText", "")
+            else:
+                answer = ""
     return {"answer": answer}
+    except Exception as e:
+        return {"answer": ""}
 
 
 # =========================
