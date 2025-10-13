@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Users, TrendingUp, Clock, AlertCircle, ArrowLeft, BookOpen, Brain, Calculator } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import ProgressBar from '../components/ProgressBar';
 import useAppState from '../hooks/useAppState';
@@ -18,6 +18,7 @@ const Teacher = () => {
   const [students, setStudents] = useState([]);
   const [heatmap, setHeatmap] = useState([]);
   const [interventions, setInterventions] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   React.useEffect(() => {
     const token = localStorage.getItem('token');
@@ -29,7 +30,15 @@ const Teacher = () => {
       fetch(`${base}/teacher/heatmap`, { headers }).then(r => r.json()).catch(() => ({ heatmap: [] })),
       fetch(`${base}/teacher/interventions`, { headers }).then(r => r.json()).catch(() => ({ interventions: [] })),
     ]).then(([s, h, i]) => {
-      setStudents(s.students || []);
+      // Use static data for demonstration
+      const staticStudents = [
+        { id: '1', name: 'John Doe', progress: 78, score: 78, lastActive: '2 hours ago' },
+        { id: '2', name: 'Jane Smith', progress: 85, score: 85, lastActive: '1 hour ago' },
+        { id: '3', name: 'Mike Johnson', progress: 72, score: 72, lastActive: '3 hours ago' },
+        { id: '4', name: 'Sarah Wilson', progress: 91, score: 91, lastActive: '30 minutes ago' },
+        { id: '5', name: 'David Brown', progress: 68, score: 68, lastActive: '4 hours ago' }
+      ];
+      setStudents(staticStudents);
       setHeatmap(h.heatmap || []);
       setInterventions(i.interventions || []);
     });
@@ -46,6 +55,208 @@ const Teacher = () => {
     if (mastery >= 80) return '#10b981';
     if (mastery >= 60) return '#fbbf24';
     return '#ef4444';
+  };
+
+  // Static student knowledge metrics data
+  const getStudentMetrics = (studentId) => {
+    const metricsData = {
+      '1': {
+        name: 'John Doe',
+        overallScore: 78,
+        subjects: {
+          'Maths': {
+            overallScore: 82,
+            topics: {
+              'Algebra': { score: 85, attempts: 12, lastAttempt: '2024-01-15' },
+              'Geometry': { score: 78, attempts: 8, lastAttempt: '2024-01-12' },
+              'Trigonometry': { score: 88, attempts: 15, lastAttempt: '2024-01-18' },
+              'Calculus': { score: 75, attempts: 6, lastAttempt: '2024-01-10' },
+              'Statistics': { score: 65, attempts: 5, lastAttempt: '2024-01-08' },
+              'Probability': { score: 62, attempts: 4, lastAttempt: '2024-01-05' }
+            }
+          },
+          'Physics': {
+            overallScore: 74,
+            topics: {
+              'Mechanics': { score: 80, attempts: 10, lastAttempt: '2024-01-16' },
+              'Thermodynamics': { score: 70, attempts: 7, lastAttempt: '2024-01-14' },
+              'Waves': { score: 72, attempts: 9, lastAttempt: '2024-01-17' },
+              'Electricity': { score: 74, attempts: 11, lastAttempt: '2024-01-19' },
+              'Optics': { score: 68, attempts: 6, lastAttempt: '2024-01-11' },
+              'Modern Physics': { score: 58, attempts: 3, lastAttempt: '2024-01-03' }
+            }
+          },
+          'Chemistry': {
+            overallScore: 76,
+            topics: {
+              'Organic Chemistry': { score: 82, attempts: 13, lastAttempt: '2024-01-18' },
+              'Inorganic Chemistry': { score: 70, attempts: 8, lastAttempt: '2024-01-13' },
+              'Physical Chemistry': { score: 76, attempts: 10, lastAttempt: '2024-01-16' },
+              'Biochemistry': { score: 78, attempts: 12, lastAttempt: '2024-01-20' },
+              'Analytical Chemistry': { score: 64, attempts: 5, lastAttempt: '2024-01-09' },
+              'Environmental Chemistry': { score: 60, attempts: 4, lastAttempt: '2024-01-06' }
+            }
+          }
+        }
+      },
+      '2': {
+        name: 'Jane Smith',
+        overallScore: 85,
+        subjects: {
+          'Maths': {
+            overallScore: 88,
+            topics: {
+              'Algebra': { score: 90, attempts: 15, lastAttempt: '2024-01-18' },
+              'Geometry': { score: 85, attempts: 12, lastAttempt: '2024-01-16' },
+              'Trigonometry': { score: 92, attempts: 18, lastAttempt: '2024-01-20' },
+              'Calculus': { score: 87, attempts: 14, lastAttempt: '2024-01-19' },
+              'Statistics': { score: 82, attempts: 10, lastAttempt: '2024-01-17' },
+              'Probability': { score: 78, attempts: 8, lastAttempt: '2024-01-14' }
+            }
+          },
+          'Physics': {
+            overallScore: 82,
+            topics: {
+              'Mechanics': { score: 85, attempts: 13, lastAttempt: '2024-01-17' },
+              'Thermodynamics': { score: 80, attempts: 10, lastAttempt: '2024-01-15' },
+              'Waves': { score: 84, attempts: 12, lastAttempt: '2024-01-18' },
+              'Electricity': { score: 79, attempts: 11, lastAttempt: '2024-01-16' },
+              'Optics': { score: 75, attempts: 9, lastAttempt: '2024-01-13' },
+              'Modern Physics': { score: 68, attempts: 6, lastAttempt: '2024-01-10' }
+            }
+          },
+          'Chemistry': {
+            overallScore: 85,
+            topics: {
+              'Organic Chemistry': { score: 88, attempts: 16, lastAttempt: '2024-01-19' },
+              'Inorganic Chemistry': { score: 82, attempts: 12, lastAttempt: '2024-01-17' },
+              'Physical Chemistry': { score: 85, attempts: 14, lastAttempt: '2024-01-18' },
+              'Biochemistry': { score: 85, attempts: 15, lastAttempt: '2024-01-20' },
+              'Analytical Chemistry': { score: 78, attempts: 8, lastAttempt: '2024-01-15' },
+              'Environmental Chemistry': { score: 72, attempts: 7, lastAttempt: '2024-01-12' }
+            }
+          }
+        }
+      },
+      '3': {
+        name: 'Mike Johnson',
+        overallScore: 72,
+        subjects: {
+          'Maths': {
+            overallScore: 75,
+            topics: {
+              'Algebra': { score: 78, attempts: 10, lastAttempt: '2024-01-14' },
+              'Geometry': { score: 72, attempts: 7, lastAttempt: '2024-01-11' },
+              'Trigonometry': { score: 80, attempts: 12, lastAttempt: '2024-01-16' },
+              'Calculus': { score: 68, attempts: 5, lastAttempt: '2024-01-08' },
+              'Statistics': { score: 58, attempts: 3, lastAttempt: '2024-01-05' },
+              'Probability': { score: 55, attempts: 2, lastAttempt: '2024-01-02' }
+            }
+          },
+          'Physics': {
+            overallScore: 70,
+            topics: {
+              'Mechanics': { score: 75, attempts: 8, lastAttempt: '2024-01-13' },
+              'Thermodynamics': { score: 65, attempts: 5, lastAttempt: '2024-01-10' },
+              'Waves': { score: 68, attempts: 6, lastAttempt: '2024-01-12' },
+              'Electricity': { score: 70, attempts: 7, lastAttempt: '2024-01-14' },
+              'Optics': { score: 62, attempts: 4, lastAttempt: '2024-01-07' },
+              'Modern Physics': { score: 55, attempts: 2, lastAttempt: '2024-01-03' }
+            }
+          },
+          'Chemistry': {
+            overallScore: 71,
+            topics: {
+              'Organic Chemistry': { score: 75, attempts: 9, lastAttempt: '2024-01-15' },
+              'Inorganic Chemistry': { score: 65, attempts: 6, lastAttempt: '2024-01-11' },
+              'Physical Chemistry': { score: 70, attempts: 7, lastAttempt: '2024-01-13' },
+              'Biochemistry': { score: 72, attempts: 8, lastAttempt: '2024-01-16' },
+              'Analytical Chemistry': { score: 58, attempts: 3, lastAttempt: '2024-01-06' },
+              'Environmental Chemistry': { score: 55, attempts: 2, lastAttempt: '2024-01-03' }
+            }
+          }
+        }
+      },
+      '4': {
+        name: 'Sarah Wilson',
+        overallScore: 91,
+        subjects: {
+          'Maths': {
+            overallScore: 93,
+            topics: {
+              'Algebra': { score: 95, attempts: 20, lastAttempt: '2024-01-20' },
+              'Geometry': { score: 90, attempts: 18, lastAttempt: '2024-01-19' },
+              'Trigonometry': { score: 96, attempts: 22, lastAttempt: '2024-01-21' },
+              'Calculus': { score: 92, attempts: 19, lastAttempt: '2024-01-20' },
+              'Statistics': { score: 88, attempts: 15, lastAttempt: '2024-01-18' },
+              'Probability': { score: 85, attempts: 12, lastAttempt: '2024-01-16' }
+            }
+          },
+          'Physics': {
+            overallScore: 89,
+            topics: {
+              'Mechanics': { score: 92, attempts: 18, lastAttempt: '2024-01-19' },
+              'Thermodynamics': { score: 88, attempts: 15, lastAttempt: '2024-01-17' },
+              'Waves': { score: 90, attempts: 16, lastAttempt: '2024-01-18' },
+              'Electricity': { score: 87, attempts: 14, lastAttempt: '2024-01-16' },
+              'Optics': { score: 85, attempts: 12, lastAttempt: '2024-01-15' },
+              'Modern Physics': { score: 82, attempts: 10, lastAttempt: '2024-01-13' }
+            }
+          },
+          'Chemistry': {
+            overallScore: 91,
+            topics: {
+              'Organic Chemistry': { score: 94, attempts: 20, lastAttempt: '2024-01-20' },
+              'Inorganic Chemistry': { score: 88, attempts: 16, lastAttempt: '2024-01-18' },
+              'Physical Chemistry': { score: 91, attempts: 18, lastAttempt: '2024-01-19' },
+              'Biochemistry': { score: 92, attempts: 19, lastAttempt: '2024-01-20' },
+              'Analytical Chemistry': { score: 87, attempts: 14, lastAttempt: '2024-01-17' },
+              'Environmental Chemistry': { score: 84, attempts: 12, lastAttempt: '2024-01-15' }
+            }
+          }
+        }
+      },
+      '5': {
+        name: 'David Brown',
+        overallScore: 68,
+        subjects: {
+          'Maths': {
+            overallScore: 70,
+            topics: {
+              'Algebra': { score: 72, attempts: 8, lastAttempt: '2024-01-12' },
+              'Geometry': { score: 68, attempts: 6, lastAttempt: '2024-01-10' },
+              'Trigonometry': { score: 75, attempts: 9, lastAttempt: '2024-01-14' },
+              'Calculus': { score: 62, attempts: 4, lastAttempt: '2024-01-07' },
+              'Statistics': { score: 55, attempts: 2, lastAttempt: '2024-01-04' },
+              'Probability': { score: 52, attempts: 1, lastAttempt: '2024-01-02' }
+            }
+          },
+          'Physics': {
+            overallScore: 66,
+            topics: {
+              'Mechanics': { score: 70, attempts: 6, lastAttempt: '2024-01-11' },
+              'Thermodynamics': { score: 60, attempts: 3, lastAttempt: '2024-01-08' },
+              'Waves': { score: 65, attempts: 4, lastAttempt: '2024-01-09' },
+              'Electricity': { score: 68, attempts: 5, lastAttempt: '2024-01-10' },
+              'Optics': { score: 58, attempts: 2, lastAttempt: '2024-01-05' },
+              'Modern Physics': { score: 50, attempts: 1, lastAttempt: '2024-01-01' }
+            }
+          },
+          'Chemistry': {
+            overallScore: 68,
+            topics: {
+              'Organic Chemistry': { score: 72, attempts: 7, lastAttempt: '2024-01-13' },
+              'Inorganic Chemistry': { score: 62, attempts: 4, lastAttempt: '2024-01-09' },
+              'Physical Chemistry': { score: 68, attempts: 5, lastAttempt: '2024-01-11' },
+              'Biochemistry': { score: 70, attempts: 6, lastAttempt: '2024-01-12' },
+              'Analytical Chemistry': { score: 55, attempts: 2, lastAttempt: '2024-01-06' },
+              'Environmental Chemistry': { score: 52, attempts: 1, lastAttempt: '2024-01-03' }
+            }
+          }
+        }
+      }
+    };
+    return metricsData[studentId] || null;
   };
 
   return (
@@ -219,7 +430,10 @@ const Teacher = () => {
                       </td>
                       <td className="py-4 px-4 text-sm text-gray-600">{student.lastActive}</td>
                       <td className="py-4 px-4">
-                        <button className="text-primary-600 hover:text-primary-700 font-medium text-sm">
+                        <button 
+                          onClick={() => setSelectedStudent(student)}
+                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                        >
                           {t('viewDetails')}
                         </button>
                       </td>
@@ -347,6 +561,180 @@ const Teacher = () => {
                 </div>
               </motion.div>
             ))}
+          </motion.div>
+        )}
+
+        {/* Student Details Modal */}
+        {selectedStudent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => setSelectedStudent(null)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        {selectedStudent.name} - {language === 'en' ? 'Knowledge Metrics' : 'ज्ञान मेट्रिक्स'}
+                      </h2>
+                      <p className="text-gray-600">
+                        {language === 'en' ? 'Detailed performance analysis across subjects and topics' : 'विषयों और विषयों में विस्तृत प्रदर्शन विश्लेषण'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {(() => {
+                  const metrics = getStudentMetrics(selectedStudent.id);
+                  if (!metrics) {
+                    return (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">
+                          {language === 'en' ? 'No data available for this student' : 'इस छात्र के लिए कोई डेटा उपलब्ध नहीं है'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Overall Performance */}
+                      <div className="card">
+                        <h3 className="text-xl font-semibold mb-4 flex items-center">
+                          <Brain className="mr-2 text-primary-600" size={24} />
+                          {language === 'en' ? 'Overall Performance' : 'समग्र प्रदर्शन'}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="text-center p-4 bg-primary-50 rounded-lg">
+                            <div className="text-3xl font-bold text-primary-600">{metrics.overallScore}%</div>
+                            <div className="text-sm text-gray-600">
+                              {language === 'en' ? 'Overall Score' : 'समग्र स्कोर'}
+                            </div>
+                          </div>
+                          <div className="text-center p-4 bg-secondary-50 rounded-lg">
+                            <div className="text-3xl font-bold text-secondary-600">
+                              {Object.keys(metrics.subjects).length}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {language === 'en' ? 'Subjects' : 'विषय'}
+                            </div>
+                          </div>
+                          <div className="text-center p-4 bg-accent-50 rounded-lg">
+                            <div className="text-3xl font-bold text-accent-600">
+                              {Object.values(metrics.subjects).reduce((total, subject) => 
+                                total + Object.keys(subject.topics).length, 0
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {language === 'en' ? 'Topics Covered' : 'कवर किए गए विषय'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Subject-wise Performance */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {Object.entries(metrics.subjects).map(([subjectName, subjectData]) => (
+                          <div key={subjectName} className="card">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-semibold flex items-center">
+                                {subjectName === 'Maths' && <Calculator className="mr-2 text-blue-600" size={20} />}
+                                {subjectName === 'Physics' && <BookOpen className="mr-2 text-green-600" size={20} />}
+                                {subjectName === 'Chemistry' && <Brain className="mr-2 text-purple-600" size={20} />}
+                                {subjectName}
+                              </h4>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-primary-600">{subjectData.overallScore}%</div>
+                                <div className="text-xs text-gray-500">
+                                  {language === 'en' ? 'Overall' : 'समग्र'}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                              {Object.entries(subjectData.topics).map(([topicName, topicData]) => (
+                                <div key={topicName} className="p-3 bg-gray-50 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-medium text-sm">{topicName}</span>
+                                    <span className="text-sm font-semibold text-gray-700">{topicData.score}%</span>
+                                  </div>
+                                  <ProgressBar progress={topicData.score} showLabel={false} height="h-2" />
+                                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>
+                                      {language === 'en' ? 'Attempts:' : 'प्रयास:'} {topicData.attempts}
+                                    </span>
+                                    <span>
+                                      {language === 'en' ? 'Last:' : 'अंतिम:'} {topicData.lastAttempt}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Performance Insights */}
+                      <div className="card">
+                        <h3 className="text-xl font-semibold mb-4">
+                          {language === 'en' ? 'Performance Insights' : 'प्रदर्शन अंतर्दृष्टि'}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-green-50 rounded-lg">
+                            <h4 className="font-semibold text-green-800 mb-2">
+                              {language === 'en' ? 'Strong Areas' : 'मजबूत क्षेत्र'}
+                            </h4>
+                            <ul className="text-sm text-green-700 space-y-1">
+                              {Object.entries(metrics.subjects).map(([subjectName, subjectData]) => 
+                                Object.entries(subjectData.topics)
+                                  .filter(([_, topicData]) => topicData.score >= 85)
+                                  .map(([topicName, _]) => (
+                                    <li key={`${subjectName}-${topicName}`}>
+                                      {subjectName} - {topicName}
+                                    </li>
+                                  ))
+                              )}
+                            </ul>
+                          </div>
+                          <div className="p-4 bg-red-50 rounded-lg">
+                            <h4 className="font-semibold text-red-800 mb-2">
+                              {language === 'en' ? 'Areas for Improvement' : 'सुधार के क्षेत्र'}
+                            </h4>
+                            <ul className="text-sm text-red-700 space-y-1">
+                              {Object.entries(metrics.subjects).map(([subjectName, subjectData]) => 
+                                Object.entries(subjectData.topics)
+                                  .filter(([_, topicData]) => topicData.score < 70)
+                                  .map(([topicName, _]) => (
+                                    <li key={`${subjectName}-${topicName}`}>
+                                      {subjectName} - {topicName}
+                                    </li>
+                                  ))
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </div>
