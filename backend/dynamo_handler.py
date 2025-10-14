@@ -9,7 +9,7 @@ load_dotenv()
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-DYNAMO_TABLE_NAME = os.getenv("DYNAMO_TABLE_NAME")
+DYNAMO_TABLE_NAME = os.getenv("DYNAMO_TABLE_NAME_CHAT_HISTORY")
 
 dynamodb = boto3.resource(
     "dynamodb",

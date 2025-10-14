@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Literal
 
+from notes_service import save_refined_note
 import bcrypt
 import boto3
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
@@ -86,6 +87,11 @@ class TutorRAGRequest(BaseModel):
 
 class DocSummaryRequest(BaseModel):
     s3_key: str
+
+
+class NoteInput(BaseModel):
+    user_id: str
+    raw_text: str
 
 
 # =========================
@@ -648,6 +654,21 @@ def get_teacher_interventions(user=Depends(require_auth)):
             {"id": 3, "title": "Advanced Algebra Challenge", "description": "Top performers ready for advanced problems.", "priority": "low", "students": ["Priya Patel", "Arjun Mehta"]},
         ]
     }
+
+# =========================
+# Notes Routes
+# =========================
+
+@app.post("/notes")
+async def create_refined_note(note: NoteInput):
+    """
+    Endpoint to refine a note using Bedrock LLM and save it in DynamoDB.
+    """
+    try:
+        saved_item = save_refined_note(note.user_id, note.raw_text)
+        return {"message": "Note refined and saved successfully!", "item": saved_item}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
