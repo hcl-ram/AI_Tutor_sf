@@ -295,7 +295,7 @@ def tutor_llm_answer(req: LLMAnswerRequest):
                 answer = data["results"][0].get("outputText", "")
             else:
                 answer = ""
-    return {"answer": answer}
+        return {"answer": answer}
     except Exception as e:
         return {"answer": ""}
 
