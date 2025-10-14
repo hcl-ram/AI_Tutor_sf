@@ -33,11 +33,13 @@ const AITutor = () => {
   const [sessionDuration, setSessionDuration] = useState('');
   const [useGoogleCalendar, setUseGoogleCalendar] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [planError, setPlanError] = useState('');
 
   const tabs = [
     { id: 'flashcards', label: t('flashcards'), icon: BookOpen },
     { id: 'notes', label: t('noteEditor'), icon: FileText },
-    { id: 'plan', label: t('studyPlan'), icon: Calendar },
+    { id: 'plan', label: 'Exam Study Guide', icon: Calendar },
   ];
 
   const flashcards = cards;
@@ -291,36 +293,19 @@ const AITutor = () => {
             className="max-w-4xl mx-auto space-y-6"
           >
             {!studyMode && (
-              <>
-                <div className="text-center">
-                  <h2 className="text-3xl font-display font-bold text-gray-900 mb-2">Study Plans</h2>
-                  <p className="text-gray-600">Pick your study mode and dive in</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    onClick={() => { setStudyMode('exam'); setExamStep(1); setGeneratedPlan(null); }}
-                    className="card h-full text-left"
-                  >
-                    <div className="text-4xl mb-3">📘</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Exam Study Guide</h3>
-                    <p className="text-sm text-gray-600">Stay on top of your exams with a structured study plan</p>
-                  </motion.button>
-
-                  <motion.div whileHover={{ scale: 1.02 }} className="card h-full">
-                    <div className="text-4xl mb-3">💡</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Deep Dive</h3>
-                    <p className="text-sm text-gray-600">Learn a subject in-depth or extract key insights from a document</p>
-                  </motion.div>
-
-                  <motion.div whileHover={{ scale: 1.02 }} className="card h-full">
-                    <div className="text-4xl mb-3">📅</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Class Workspace</h3>
-                    <p className="text-sm text-gray-600">Organize your classes, notes, and deadlines in one place.</p>
-                  </motion.div>
-                </div>
-              </>
+              <div className="text-center">
+                <h2 className="text-3xl font-display font-bold text-gray-900 mb-2">Exam Study Guide</h2>
+                <p className="text-gray-600 mb-8">Create a personalized study plan for your upcoming exam</p>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { setStudyMode('exam'); setExamStep(1); setGeneratedPlan(null); }}
+                  className="btn-primary text-lg px-8 py-4"
+                >
+                  Start Creating Study Plan
+                </motion.button>
+              </div>
             )}
 
             {studyMode === 'exam' && (
@@ -331,7 +316,7 @@ const AITutor = () => {
                     onClick={() => { setStudyMode(null); setGeneratedPlan(null); }}
                     className="text-sm text-gray-600 hover:text-gray-800"
                   >
-                    ← Back to Study Plans
+                    ← Back to Exam Study Guide
                   </button>
                   <div className="text-sm text-gray-600">Step {examStep} of 3</div>
                 </div>
@@ -341,15 +326,15 @@ const AITutor = () => {
                   {[1,2,3].map((s) => (
                     <div key={s} className={`w-8 h-1 rounded ${examStep >= s ? 'bg-primary-500' : 'bg-gray-200'}`}></div>
                   ))}
-                </div>
+            </div>
 
                 {/* Step 1: Exam Details */}
                 {examStep === 1 && (
-                  <motion.div
+              <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="card"
-                  >
+                className="card"
+              >
                     <h3 className="text-2xl font-display font-bold text-gray-900 mb-6">What does your exam cover?</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -448,8 +433,8 @@ const AITutor = () => {
                       >
                         Continue
                       </motion.button>
-                    </div>
-                  </motion.div>
+                </div>
+              </motion.div>
                 )}
 
                 {/* Step 3: Study Preferences */}
@@ -493,32 +478,69 @@ const AITutor = () => {
                     </div>
 
                     <div className="mt-6 text-right">
-                      <motion.button
+            <motion.button
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          // Generate summary
-                          const topicList = topics.filter(t => t.trim());
-                          let frequency = '2-3 times per week';
-                          if (studyIntensity.startsWith('Light')) frequency = 'once per week';
-                          if (studyIntensity.startsWith('Moderate')) frequency = '3 times per week';
-                          if (studyIntensity.startsWith('Intense')) frequency = 'daily';
-                          const summary = {
-                            planName,
-                            subject: examSubject,
-                            topics: topicList,
-                            examDate,
-                            timeWindow: startTime && endTime ? `${startTime} - ${endTime}` : '',
-                            schedule: `${frequency} • ${sessionDuration || '45–60 mins'} • ${preferredTime || 'Anytime'}`,
-                            calendar: useGoogleCalendar,
-                          };
-                          setGeneratedPlan(summary);
+                        onClick={async () => {
+                          if (!preferredTime || !studyIntensity || !sessionDuration) return;
+                          
+                          setIsGeneratingPlan(true);
+                          setPlanError('');
+                          
+                          try {
+                            const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:8002';
+                            const response = await fetch(`${apiBase}/tutor/generate-study-plan`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                plan_name: planName,
+                                grade_level: gradeLevel,
+                                subject: examSubject,
+                                topics: topics.filter(t => t.trim()),
+                                exam_date: examDate,
+                                start_time: startTime,
+                                end_time: endTime,
+                                preferred_time: preferredTime,
+                                study_intensity: studyIntensity,
+                                session_duration: sessionDuration,
+                                use_google_calendar: useGoogleCalendar,
+                              }),
+                            });
+                            
+                            const data = await response.json();
+                            if (!response.ok) {
+                              throw new Error(data.detail || 'Failed to generate study plan');
+                            }
+                            
+                            setGeneratedPlan(data.study_plan);
+                          } catch (error) {
+                            console.error('Study plan generation error:', error);
+                            setPlanError(error.message || 'Failed to generate study plan');
+                          } finally {
+                            setIsGeneratingPlan(false);
+                          }
                         }}
-                        disabled={!preferredTime || !studyIntensity || !sessionDuration}
-                        className={`btn-primary ${(!preferredTime || !studyIntensity || !sessionDuration) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        disabled={!preferredTime || !studyIntensity || !sessionDuration || isGeneratingPlan}
+                        className={`btn-primary ${(!preferredTime || !studyIntensity || !sessionDuration || isGeneratingPlan) ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
-                        Generate My Study Plan
-                      </motion.button>
+                        {isGeneratingPlan ? 'Generating...' : 'Generate My Study Plan'}
+            </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Error Display */}
+                {planError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="card border-red-200 bg-red-50"
+                  >
+                    <div className="text-red-600">
+                      <h4 className="font-semibold mb-2">Error generating study plan</h4>
+                      <p className="text-sm">{planError}</p>
                     </div>
                   </motion.div>
                 )}
@@ -528,39 +550,253 @@ const AITutor = () => {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="card"
+                    className="space-y-6"
                   >
-                    <h3 className="text-2xl font-display font-bold text-gray-900 mb-2">Your Personalized Study Plan</h3>
-                    <p className="text-gray-600 mb-6">Based on your inputs, here’s a suggested outline.</p>
+                    {/* Plan Overview */}
+                    <div className="card">
+                      <h3 className="text-2xl font-display font-bold text-gray-900 mb-4">Your Personalized Study Plan</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <p className="text-sm text-gray-500">Study Plan Name</p>
+                          <p className="font-semibold text-gray-900">{generatedPlan.plan_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Subject</p>
+                          <p className="font-semibold text-gray-900">{generatedPlan.subject || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Exam Date & Time</p>
+                          <p className="font-semibold text-gray-900">{generatedPlan.exam_date || '—'}</p>
+                          <p className="text-sm text-gray-700">{generatedPlan.exam_time || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Days Until Exam</p>
+                          <p className="font-semibold text-gray-900">{generatedPlan.days_until_exam || '—'} days</p>
+                        </div>
+                      </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Study Plan Name</p>
-                        <p className="font-semibold text-gray-900">{generatedPlan.planName || '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Subject and Topics</p>
-                        <p className="font-semibold text-gray-900">{generatedPlan.subject || '—'}</p>
-                        <p className="text-sm text-gray-700 mt-1">{(generatedPlan.topics || []).join(', ')}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Exam Date and Duration</p>
-                        <p className="font-semibold text-gray-900">{generatedPlan.examDate || '—'}{generatedPlan.timeWindow ? ` • ${generatedPlan.timeWindow}` : ''}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Recommended Schedule</p>
-                        <p className="font-semibold text-gray-900">{generatedPlan.schedule}</p>
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-500 mb-2">Topics to Cover</p>
+                        <div className="flex flex-wrap gap-2">
+                          {(generatedPlan.topics || []).map((topic, idx) => (
+                            <span key={idx} className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    {generatedPlan.calendar && (
-                      <div className="mt-4 text-sm text-gray-600">We’ll try to find suitable time slots on your Google Calendar.</div>
+                    {/* Study Schedule */}
+                    {generatedPlan.study_schedule && (
+                      <div className="card">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-4">📅 Study Schedule</h4>
+                        {generatedPlan.study_schedule.weekly_breakdown && generatedPlan.study_schedule.weekly_breakdown.map((week, idx) => (
+                          <div key={idx} className="mb-4 p-4 bg-gray-50 rounded-lg">
+                            <h5 className="font-semibold text-gray-800 mb-2">Week {week.week}</h5>
+                            <p className="text-sm text-gray-600 mb-3">Focus: {week.focus_topics?.join(', ')}</p>
+                            {week.daily_schedule && (
+                              <div className="space-y-2">
+                                {week.daily_schedule.map((day, dayIdx) => (
+                                  <div key={dayIdx} className="flex justify-between items-center text-sm">
+                                    <span className="font-medium">{day.day}</span>
+                                    <span className="text-gray-600">{day.time}</span>
+                                    <span className="text-gray-700">{day.activity}</span>
+                                    <span className="text-gray-500">{day.duration}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
 
-                    <div className="mt-6 flex flex-wrap gap-3">
+                    {/* Topic Prioritization */}
+                    {generatedPlan.topic_prioritization && (
+                      <div className="card">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-4">🎯 Topic Prioritization</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {generatedPlan.topic_prioritization.map((topic, idx) => (
+                            <div key={idx} className="p-3 border rounded-lg">
+                              <div className="flex justify-between items-start mb-2">
+                                <h5 className="font-medium text-gray-900">{topic.topic}</h5>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  topic.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                  topic.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  {topic.priority}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600">Time: {topic.time_allocation}</p>
+                              <p className="text-sm text-gray-600">Difficulty: {topic.difficulty}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Detailed Topic Information */}
+                    {generatedPlan.detailed_topic_info && (
+                      <div className="card">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-4">📖 Detailed Topic Information</h4>
+                        <div className="space-y-6">
+                          {Object.entries(generatedPlan.detailed_topic_info).map(([topic, info], idx) => (
+                            <div key={idx} className="p-6 border rounded-lg bg-gray-50">
+                              <h5 className="text-lg font-bold text-gray-900 mb-3">{topic}</h5>
+                              
+                              {/* Definition */}
+                              <div className="mb-4">
+                                <h6 className="font-semibold text-gray-800 mb-2">Definition:</h6>
+                                <p className="text-gray-700 text-sm">{info.definition}</p>
+                              </div>
+
+                              {/* Sub-topics */}
+                              {info.sub_topics && info.sub_topics.length > 0 && (
+                                <div className="mb-4">
+                                  <h6 className="font-semibold text-gray-800 mb-2">Sub-topics to Cover:</h6>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {info.sub_topics.map((subTopic, subIdx) => (
+                                      <div key={subIdx} className="px-3 py-2 bg-white rounded border text-sm">
+                                        {subTopic}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Key Concepts */}
+                              {info.key_concepts && info.key_concepts.length > 0 && (
+                                <div className="mb-4">
+                                  <h6 className="font-semibold text-gray-800 mb-2">Key Concepts:</h6>
+                                  <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                                    {info.key_concepts.map((concept, conceptIdx) => (
+                                      <li key={conceptIdx}>{concept}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Formulas */}
+                              {info.formulas && info.formulas.length > 0 && (
+                                <div className="mb-4">
+                                  <h6 className="font-semibold text-gray-800 mb-2">Important Formulas:</h6>
+                                  <div className="bg-white p-3 rounded border">
+                                    {info.formulas.map((formula, formulaIdx) => (
+                                      <div key={formulaIdx} className="text-sm font-mono text-gray-800 mb-1">
+                                        {formula}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Examples */}
+                              {info.examples && info.examples.length > 0 && (
+                                <div className="mb-4">
+                                  <h6 className="font-semibold text-gray-800 mb-2">Example Problems:</h6>
+                                  <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                                    {info.examples.map((example, exampleIdx) => (
+                                      <li key={exampleIdx}>{example}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Learning Objectives */}
+                              {info.learning_objectives && info.learning_objectives.length > 0 && (
+                                <div className="mb-4">
+                                  <h6 className="font-semibold text-gray-800 mb-2">Learning Objectives:</h6>
+                                  <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                                    {info.learning_objectives.map((objective, objIdx) => (
+                                      <li key={objIdx}>{objective}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Study Strategies */}
+                    {generatedPlan.study_strategies && (
+                      <div className="card">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-4">📚 Study Strategies</h4>
+                        <div className="space-y-4">
+                          {generatedPlan.study_strategies.map((strategy, idx) => (
+                            <div key={idx} className="p-4 border rounded-lg">
+                              <h5 className="font-semibold text-gray-800 mb-2">{strategy.topic}</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <p className="font-medium text-gray-700 mb-1">Techniques:</p>
+                                  <ul className="list-disc list-inside text-gray-600">
+                                    {strategy.techniques?.map((tech, techIdx) => (
+                                      <li key={techIdx}>{tech}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-700 mb-1">Resources:</p>
+                                  <ul className="list-disc list-inside text-gray-600">
+                                    {strategy.resources?.map((res, resIdx) => (
+                                      <li key={resIdx}>{res}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-700 mb-1">Practice Methods:</p>
+                                  <ul className="list-disc list-inside text-gray-600">
+                                    {strategy.practice_methods?.map((method, methodIdx) => (
+                                      <li key={methodIdx}>{method}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {generatedPlan.recommendations && (
+                      <div className="card">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-4">💡 Recommendations</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <h5 className="font-semibold text-gray-800 mb-2">Study Environment</h5>
+                            <p className="text-sm text-gray-600">{generatedPlan.recommendations.study_environment}</p>
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-gray-800 mb-2">Time Management</h5>
+                            <p className="text-sm text-gray-600">{generatedPlan.recommendations.time_management}</p>
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-gray-800 mb-2">Stress Management</h5>
+                            <p className="text-sm text-gray-600">{generatedPlan.recommendations.stress_management}</p>
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-gray-800 mb-2">Last Minute Prep</h5>
+                            <p className="text-sm text-gray-600">{generatedPlan.recommendations.last_minute_prep}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3">
                       <button
                         className="btn-secondary"
-                        onClick={() => { setStudyMode(null); setExamStep(1); setGeneratedPlan(null); }}
+                        onClick={() => { 
+                          setStudyMode(null); 
+                          setExamStep(1); 
+                          setGeneratedPlan(null); 
+                          setPlanError('');
+                        }}
                       >
                         Start Over
                       </button>
