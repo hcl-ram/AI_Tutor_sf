@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import Literal, List
 from dotenv import load_dotenv
 from study_plan_service import generate_study_plan_with_bedrock
+from notes_service import save_refined_note
 
 load_dotenv()
 
@@ -116,6 +117,10 @@ class FlashcardsRequest(BaseModel):
 
 class BedrockAskRequest(BaseModel):
     question: str
+
+class NoteInput(BaseModel):
+    user_id: str
+    raw_text: str
 
 # Other existing models would go here...
 
@@ -507,6 +512,21 @@ def tutor_bedrock_answer(req: BedrockAskRequest):
 
     except Exception as e:
         return {"answer": f"Error calling Bedrock: {str(e)}"}
+
+# =========================
+# Notes Routes
+# =========================
+
+@app.post("/notes")
+async def create_refined_note(note: NoteInput):
+    """
+    Endpoint to refine a note using Bedrock LLM and save it in DynamoDB.
+    """
+    try:
+        saved_item = save_refined_note(note.user_id, note.raw_text)
+        return {"message": "Note refined and saved successfully!", "item": saved_item}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Support endpoint
 @app.post("/support/ask")

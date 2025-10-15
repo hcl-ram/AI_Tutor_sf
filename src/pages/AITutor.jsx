@@ -57,6 +57,49 @@ const AITutor = () => {
     }
   };
 
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [refinedNote, setRefinedNote] = useState("");
+
+  // 🧩 Function to call FastAPI endpoint
+  const handleSave = async () => {
+    setLoading(true);
+    setMessage("");
+    setRefinedNote("");
+
+    try {
+      const response = await fetch("http://localhost:8002/notes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: "test_user_1",
+          raw_text: noteContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setMessage(data.message);
+
+      // ✅ show refined version returned by API
+      if (data.item && data.item.refined_text) {
+        setRefinedNote(data.item.refined_text);
+      } else if (data.item && data.item.note) {
+        // fallback if your DB key is named "note"
+        setRefinedNote(data.item.note);
+      }
+    } catch (error) {
+      console.error("Error saving note:", error);
+      setMessage("Failed to save note.");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="max-w-6xl mx-auto">
@@ -274,13 +317,25 @@ const AITutor = () => {
               <p className="text-sm text-gray-500">
                 {language === 'en' ? 'Auto-saved' : 'स्वतः सहेजा गया'} • {noteContent.length} {language === 'en' ? 'characters' : 'वर्ण'}
               </p>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="btn-primary"
-              >
-                {t('save')}
-              </motion.button>
+              <div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="btn-primary"
+                  onClick={handleSave}
+                  disabled={loading}
+                >
+                  {loading ? t("saving") : t("save")}
+                </motion.button>
+
+                {message && <p className="mt-2 text-sm text-gray-600">{message}</p>}
+                {refinedNote && (
+                  <div className="mt-4 p-3 bg-gray-100 rounded-md">
+                    <h3 className="font-semibold mb-2">Refined Note:</h3>
+                    <p className="whitespace-pre-wrap">{refinedNote}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
