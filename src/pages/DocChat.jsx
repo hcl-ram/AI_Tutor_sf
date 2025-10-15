@@ -68,86 +68,152 @@ const DocChat = () => {
     handleFileUpload(file);
   };
 
-  const handleSendMessage = async () => {
-    if (inputMessage.trim() && uploadedDocument) {
+  // const handleSendMessage = async () => {
+  //   if (inputMessage.trim() && uploadedDocument) {
+  //     const userMessage = {
+  //       id: messages.length + 1,
+  //       type: 'user',
+  //       content: inputMessage,
+  //     };
+
+  //     setMessages([...messages, userMessage]);
+  //     setInputMessage('');
+  //     // Prefer RAG with the uploaded document; fallback to summary-context, then to plain LLM
+  //     try {
+  //       const token = localStorage.getItem('token');
+  //       const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+  //       let answerText = '';
+  //       let refs = [];
+
+  //       // 1) RAG using document key
+  //       try {
+  //         const ragRes = await fetch(`${base}/tutor/rag-answer`, {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+  //           body: JSON.stringify({ question: userMessage.content, s3_key: uploadedDocument?.s3Key })
+  //         });
+  //         const ragData = await ragRes.json();
+  //         if (ragRes.ok) {
+  //           answerText = ragData?.answer || '';
+  //           refs = (ragData?.sources || []).map(s => `${s.source} (score ${s.score})`);
+  //         }
+  //       } catch {}
+
+  //       // 2) If empty, ensure we have a summary then use summary context
+  //       if (!answerText) {
+  //         let summaryToUse = docSummary;
+  //         if (!summaryToUse && uploadedDocument?.s3Key) {
+  //           try {
+  //             const sres = await fetch(`${base}/tutor/doc-summary`, {
+  //               method: 'POST',
+  //               headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+  //               body: JSON.stringify({ s3_key: uploadedDocument.s3Key })
+  //             });
+  //             const sdata = await sres.json();
+  //             if (sres.ok) summaryToUse = sdata?.summary || '';
+  //           } catch {}
+  //         }
+  //         try {
+  //           const ctxRes = await fetch(`${base}/tutor/answer-with-context`, {
+  //             method: 'POST',
+  //             headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+  //             body: JSON.stringify({ question: userMessage.content, context: summaryToUse || '' })
+  //           });
+  //           const ctxData = await ctxRes.json();
+  //           if (ctxRes.ok) answerText = ctxData?.answer || '';
+  //         } catch {}
+  //       }
+
+  //       // 3) Final safety: generic helpful fallback if still empty
+  //       if (!answerText) {
+  //         answerText = language === 'en'
+  //           ? 'Sorry, I could not find an answer in the document. Try rephrasing or asking more specifically.'
+  //           : 'क्षमा करें, मुझे दस्तावेज़ में उत्तर नहीं मिला। कृपया अपना प्रश्न पुनः वाक्यांशित करें या अधिक विशिष्ट पूछें।';
+  //       }
+  //       const aiMessage = {
+  //         id: userMessage.id + 1,
+  //         type: 'ai',
+  //         content: answerText || (language === 'en' ? 'No answer available.' : 'उत्तर उपलब्ध नहीं है।'),
+  //         references: refs
+  //       };
+  //       setMessages((prev) => [...prev, aiMessage]);
+  //     } catch (e) {
+  //       const aiMessage = {
+  //         id: userMessage.id + 1,
+  //         type: 'ai',
+  //         content: language === 'en' ? 'Failed to fetch answer.' : 'उत्तर प्राप्त करने में विफल।'
+  //       };
+  //       setMessages((prev) => [...prev, aiMessage]);
+  //     }
+  //   }
+  // };
+
+  const handleSendBedrockMessage = async () => {
+    if (inputMessage.trim()) {
       const userMessage = {
         id: messages.length + 1,
         type: 'user',
         content: inputMessage,
       };
-
+  
       setMessages([...messages, userMessage]);
       setInputMessage('');
-      // Prefer RAG with the uploaded document; fallback to summary-context, then to plain LLM
+  
       try {
         const token = localStorage.getItem('token');
-        const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        const base =
+          process.env.REACT_APP_API_BASE ||
+          process.env.REACT_APP_API_BASE_URL ||
+          'http://localhost:8002';
+  
+        // Prepare request body
+        const payload = { question: userMessage.content };
+  
+        // Call new backend endpoint (we’ll implement this later)
+        const res = await fetch(`${base}/tutor/bedrock-answer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify(payload),
+        });
+  
         let answerText = '';
-        let refs = [];
-
-        // 1) RAG using document key
-        try {
-          const ragRes = await fetch(`${base}/tutor/rag-answer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-            body: JSON.stringify({ question: userMessage.content, s3_key: uploadedDocument?.s3Key })
-          });
-          const ragData = await ragRes.json();
-          if (ragRes.ok) {
-            answerText = ragData?.answer || '';
-            refs = (ragData?.sources || []).map(s => `${s.source} (score ${s.score})`);
-          }
-        } catch {}
-
-        // 2) If empty, ensure we have a summary then use summary context
-        if (!answerText) {
-          let summaryToUse = docSummary;
-          if (!summaryToUse && uploadedDocument?.s3Key) {
-            try {
-              const sres = await fetch(`${base}/tutor/doc-summary`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-                body: JSON.stringify({ s3_key: uploadedDocument.s3Key })
-              });
-              const sdata = await sres.json();
-              if (sres.ok) summaryToUse = sdata?.summary || '';
-            } catch {}
-          }
-          try {
-            const ctxRes = await fetch(`${base}/tutor/answer-with-context`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-              body: JSON.stringify({ question: userMessage.content, context: summaryToUse || '' })
-            });
-            const ctxData = await ctxRes.json();
-            if (ctxRes.ok) answerText = ctxData?.answer || '';
-          } catch {}
+        if (res.ok) {
+          const data = await res.json();
+          answerText = data?.answer || '';
         }
-
-        // 3) Final safety: generic helpful fallback if still empty
+  
+        // Fallback if no response
         if (!answerText) {
-          answerText = language === 'en'
-            ? 'Sorry, I could not find an answer in the document. Try rephrasing or asking more specifically.'
-            : 'क्षमा करें, मुझे दस्तावेज़ में उत्तर नहीं मिला। कृपया अपना प्रश्न पुनः वाक्यांशित करें या अधिक विशिष्ट पूछें।';
+          answerText =
+            language === 'en'
+              ? 'Sorry, no response received from Bedrock.'
+              : 'क्षमा करें, Bedrock से कोई उत्तर प्राप्त नहीं हुआ।';
         }
+  
         const aiMessage = {
           id: userMessage.id + 1,
           type: 'ai',
-          content: answerText || (language === 'en' ? 'No answer available.' : 'उत्तर उपलब्ध नहीं है।'),
-          references: refs
+          content: answerText,
         };
+  
         setMessages((prev) => [...prev, aiMessage]);
-      } catch (e) {
+      } catch (error) {
         const aiMessage = {
           id: userMessage.id + 1,
           type: 'ai',
-          content: language === 'en' ? 'Failed to fetch answer.' : 'उत्तर प्राप्त करने में विफल।'
+          content:
+            language === 'en'
+              ? 'Failed to connect to Bedrock API.'
+              : 'Bedrock API से कनेक्ट करने में विफल।',
         };
         setMessages((prev) => [...prev, aiMessage]);
       }
     }
   };
-
+  
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="max-w-7xl mx-auto">
@@ -319,14 +385,14 @@ const DocChat = () => {
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendBedrockMessage()}
                   placeholder={t('askQuestion')}
                   className="flex-1 input-field"
                 />
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={handleSendMessage}
+                  onClick={handleSendBedrockMessage}
                   disabled={!inputMessage.trim()}
                   className={`p-3 rounded-xl bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow-md hover:shadow-lg transition-all ${
                     !inputMessage.trim() ? 'opacity-50 cursor-not-allowed' : ''

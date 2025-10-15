@@ -4,6 +4,7 @@ import json
 import re
 import uuid
 import boto3
+from numpy import append
 import bcrypt
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -112,6 +113,9 @@ class FlashcardsRequest(BaseModel):
     subject: str
     topic: str
     num_cards: int = 6
+
+class BedrockAskRequest(BaseModel):
+    question: str
 
 # Other existing models would go here...
 
@@ -458,6 +462,51 @@ def tutor_flashcards(req: FlashcardsRequest):
             {"front": f"Why {topic} matters", "back": f"Where {topic} is used in real life."},
         ][: req.num_cards]
         return {"flashcards": fallback, "warning": f"Bedrock error: {e}"}
+
+@app.post("/tutor/bedrock-answer")
+def tutor_bedrock_answer(req: BedrockAskRequest):
+    """Very simple endpoint that calls Bedrock LLM with the question only."""
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+
+    # Load model ID and create Bedrock client
+    model_id = os.getenv("BEDROCK_MODEL_ID")
+    if not model_id:
+        raise HTTPException(status_code=500, detail="BEDROCK_MODEL_ID not set")
+    client = get_bedrock_runtime_client()
+
+    # Minimal single prompt
+    prompt = f"Answer clearly and concisely:\n\nUser: {question}\nAssistant:"
+
+    payload = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+        "max_tokens": 300,
+        "temperature": 0.5,
+    }
+
+    try:
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(payload),
+            contentType="application/json",
+            accept="application/json",
+        )
+
+        data = json.loads(response["body"].read())
+        # Works for Claude-3/Claude-3.5 — just grab text
+        answer = ""
+        if isinstance(data, dict):
+            parts = data.get("content") or []
+            if parts and isinstance(parts, list):
+                answer = "".join(p.get("text", "") for p in parts)
+            else:
+                answer = data.get("completion", "")
+        return {"answer": answer or "No response received."}
+
+    except Exception as e:
+        return {"answer": f"Error calling Bedrock: {str(e)}"}
 
 # Support endpoint
 @app.post("/support/ask")
