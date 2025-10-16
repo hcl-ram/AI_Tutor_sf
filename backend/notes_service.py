@@ -71,6 +71,7 @@ def refine_note_with_llm(raw_text: str) -> str:
         "Refined version:",
         "Refined note:",
         "Here's a refined version of the note:",
+        "Here's a refined and well-structured version of the note:"
     ]
 
     for prefix in unwanted_prefixes:
