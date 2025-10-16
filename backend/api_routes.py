@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Literal, List
 from dotenv import load_dotenv
 from study_plan_service import generate_study_plan_with_bedrock
+from agents.tutor_agent import tutor_agent
 
 load_dotenv()
 
@@ -542,6 +543,24 @@ def support_ask(req: SupportAskRequest):
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "message": "AI Tutor API is running"}
+
+
+# Unified agent endpoint
+@app.post("/agent/ask")
+def agent_ask(payload: dict, user=Depends(require_auth)):
+    """Route a generic tutoring request to the agent which will invoke tools as needed.
+
+    Examples of payloads:
+    - {"type": "generate_study_plan", ...}
+    - {"type": "rag_answer", "question": "...", "s3_key": "..."}
+    - {"type": "doc_summary", "s3_key": "..."}
+    - {"type": "answer_with_context", "question": "...", "context": "..."}
+    """
+    try:
+        result = tutor_agent.run(input=payload, context={"user": user})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {e}")
 
 
 if __name__ == "__main__":
