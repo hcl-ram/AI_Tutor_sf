@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight, RefreshCw, Brain } from 'lucide-react';
+import { ChevronRight, RefreshCw, Brain, BookOpen, FileText } from 'lucide-react';
 // QuizCard removed from single-question flow; showing all questions at once
 import ProgressBar from '../components/ProgressBar';
 import useAppState from '../hooks/useAppState';
@@ -15,7 +15,7 @@ const Student = () => {
   // Authentication is now handled on Home page
   const t = useTranslation(language);
   
-  const [step, setStep] = useState(0); // 0: adaptive quiz button, 1: class selection, 2: subject selection, 3: chapter selection, 4: quiz, 5: practice
+  const [step, setStep] = useState(0); // 0: student hub (AI Tutor, Doc Chat, Adaptive Quiz), 1: class selection, 2: subject selection, 3: chapter selection, 4: quiz, 5: practice
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedChapter, setSelectedChapter] = useState('');
@@ -181,82 +181,97 @@ const Student = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-12">
       <div className="max-w-4xl mx-auto">
-        {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            {[0, 1, 2, 3, 4, 5].map((s) => (
-              <div key={s} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold transition-all text-xs ${
-                    step >= s
-                      ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md'
-                      : 'bg-gray-200 text-gray-500'
-                  }`}
-                >
-                  {s + 1}
-                </div>
-                {s < 5 && (
+        {/* Progress Indicator (visible after starting Adaptive Quiz) */}
+        {step > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              {[0, 1, 2, 3, 4, 5].map((s) => (
+                <div key={s} className="flex items-center">
                   <div
-                    className={`w-12 h-1 mx-1 rounded transition-all ${
-                      step > s ? 'bg-primary-500' : 'bg-gray-200'
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold transition-all text-xs ${
+                      step >= s
+                        ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md'
+                        : 'bg-gray-200 text-gray-500'
                     }`}
-                  />
-                )}
-              </div>
-            ))}
+                  >
+                    {s + 1}
+                  </div>
+                  {s < 5 && (
+                    <div
+                      className={`w-12 h-1 mx-1 rounded transition-all ${
+                        step > s ? 'bg-primary-500' : 'bg-gray-200'
+                      }`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-xs text-gray-600 max-w-4xl mx-auto">
+              <span>{language === 'en' ? 'Start' : 'शुरू'}</span>
+              <span>{language === 'en' ? 'Class' : 'कक्षा'}</span>
+              <span>{language === 'en' ? 'Subject' : 'विषय'}</span>
+              <span>{language === 'en' ? 'Chapter' : 'अध्याय'}</span>
+              <span>{language === 'en' ? 'Quiz' : 'प्रश्नोत्तरी'}</span>
+              <span>{language === 'en' ? 'Results' : 'परिणाम'}</span>
+            </div>
           </div>
-          <div className="flex justify-between text-xs text-gray-600 max-w-4xl mx-auto">
-            <span>{language === 'en' ? 'Start' : 'शुरू'}</span>
-            <span>{language === 'en' ? 'Class' : 'कक्षा'}</span>
-            <span>{language === 'en' ? 'Subject' : 'विषय'}</span>
-            <span>{language === 'en' ? 'Chapter' : 'अध्याय'}</span>
-            <span>{language === 'en' ? 'Quiz' : 'प्रश्नोत्तरी'}</span>
-            <span>{language === 'en' ? 'Results' : 'परिणाम'}</span>
-          </div>
-        </div>
+        )}
 
-        {/* Step 0: Adaptive Quiz Button */}
+        {/* Step 0: Student Hub - three centered feature buttons */}
         {step === 0 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="card max-w-2xl mx-auto text-center"
+            className="card max-w-3xl mx-auto text-center"
           >
-            <div className="mb-6">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center">
-                <Brain className="text-white" size={40} />
-              </div>
-              <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">
-                {t('adaptiveQuiz')}
-              </h2>
-              <p className="text-gray-600">
-                {language === 'en'
-                  ? 'Test your knowledge with AI-generated questions'
-                  : 'AI-जनित प्रश्नों के साथ अपने ज्ञान का परीक्षण करें'}
-              </p>
-            </div>
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-6">
+              {language === 'en' ? 'What would you like to do?' : 'आप क्या करना चाहेंगे?'}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  // Navigate to AI Tutor page
+                  navigate('/ai-tutor');
+                }}
+                className="p-6 rounded-xl border-2 border-gray-200 hover:border-primary-400 transition text-left"
+              >
+                <div className="w-14 h-14 mb-3 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center">
+                  <BookOpen className="text-white" size={28} />
+                </div>
+                <div className="font-semibold text-gray-900 mb-1">{t('aiTutor')}</div>
+                <div className="text-sm text-gray-600">{language === 'en' ? 'Learn with flashcards, plans and notes' : 'फ्लैशकार्ड, योजना और नोट्स के साथ सीखें'}</div>
+              </motion.button>
 
-            <div className="space-y-4 mb-6">
-              <div className="p-4 bg-primary-50 rounded-xl text-left">
-                <p className="font-medium text-gray-900 mb-2">
-                  {language === 'en' ? 'Difficulty' : 'कठिनाई'}: Adaptive
-                </p>
-                <p className="text-sm text-gray-600">
-                  {language === 'en'
-                    ? 'Questions will adjust based on your performance'
-                    : 'प्रश्न आपके प्रदर्शन के आधार पर समायोजित होंगे'}
-                </p>
-              </div>
-            </div>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  navigate('/doc-chat');
+                }}
+                className="p-6 rounded-xl border-2 border-gray-200 hover:border-primary-400 transition text-left"
+              >
+                <div className="w-14 h-14 mb-3 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center">
+                  <FileText className="text-white" size={28} />
+                </div>
+                <div className="font-semibold text-gray-900 mb-1">{t('docChat')}</div>
+                <div className="text-sm text-gray-600">{language === 'en' ? 'Upload PDF and chat to understand' : 'PDF अपलोड करें और समझने के लिए चैट करें'}</div>
+              </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setStep(1)}
-              className="btn-primary w-full"
-            >
-              {t('startQuiz')}
-            </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setStep(1)}
+                className="p-6 rounded-xl border-2 border-gray-200 hover:border-primary-400 transition text-left"
+              >
+                <div className="w-14 h-14 mb-3 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center">
+                  <Brain className="text-white" size={28} />
+                </div>
+                <div className="font-semibold text-gray-900 mb-1">{t('adaptiveQuiz')}</div>
+                <div className="text-sm text-gray-600">{language === 'en' ? 'AI-generated questions tailored to you' : 'आपके अनुरूप AI-जनित प्रश्न'}</div>
+              </motion.button>
+            </div>
           </motion.div>
         )}
 

@@ -37,9 +37,9 @@ const AITutor = () => {
   const [planError, setPlanError] = useState('');
 
   const tabs = [
-    { id: 'flashcards', label: t('flashcards'), icon: BookOpen },
-    { id: 'notes', label: t('noteEditor'), icon: FileText },
     { id: 'plan', label: 'Exam Study Guide', icon: Calendar },
+    { id: 'notes', label: t('noteEditor'), icon: FileText },
+    { id: 'flashcards', label: t('flashcards'), icon: BookOpen },
   ];
 
   const flashcards = cards;
