@@ -44,8 +44,12 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy backend source code
 COPY backend/ ./backend/
 
-# Copy built frontend from previous stage (copy the build folder)
-COPY --from=frontend-builder /app/frontend/build /app/frontend/build
+# Copy built frontend from previous stage
+COPY --from=frontend-builder /app/frontend/build ./frontend/build
+
+# Debug: Check what was built
+RUN ls -la /app/frontend/build/ || echo "Build directory not found"
+RUN ls -la /app/frontend/build/static/ || echo "Static directory not found"
 
 # Install FastAPI and dependencies for serving static files
 RUN pip install --no-cache-dir fastapi[all] python-multipart
@@ -58,19 +62,41 @@ import os\n\
 \n\
 app = FastAPI()\n\
 \n\
-# Mount static files directory (React build)\n\
-app.mount("/static", StaticFiles(directory="/app/frontend/build/static"), name="static")\n\
+# Check if static directory exists before mounting\n\
+static_dir = "/app/frontend/build/static"\n\
+build_dir = "/app/frontend/build"\n\
+\n\
+print(f"Checking build directory: {build_dir}")\n\
+print(f"Build directory exists: {os.path.exists(build_dir)}")\n\
+if os.path.exists(build_dir):\n\
+    print(f"Build directory contents: {os.listdir(build_dir)}")\n\
+\n\
+print(f"Checking static directory: {static_dir}")\n\
+print(f"Static directory exists: {os.path.exists(static_dir)}")\n\
+if os.path.exists(static_dir):\n\
+    print(f"Static directory contents: {os.listdir(static_dir)}")\n\
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")\n\
+else:\n\
+    print("Static directory not found, skipping static file mounting")\n\
 \n\
 @app.get("/")\n\
 async def read_index():\n\
-    return FileResponse("/app/frontend/build/index.html")\n\
+    if os.path.exists("/app/frontend/build/index.html"):\n\
+        return FileResponse("/app/frontend/build/index.html")\n\
+    else:\n\
+        return {"error": "Frontend build not found"}\n\
 \n\
 @app.get("/{path:path}")\n\
 async def read_other(path: str):\n\
-    # Serve index.html for all other routes (React Router)\n\
-    if not os.path.exists(f"/app/frontend/build/{path}") or os.path.isdir(f"/app/frontend/build/{path}"):\n\
-        return FileResponse("/app/frontend/build/index.html")\n\
-    return FileResponse(f"/app/frontend/build/{path}")\n\
+    file_path = f"/app/frontend/build/{path}"\n\
+    if os.path.exists(file_path) and not os.path.isdir(file_path):\n\
+        return FileResponse(file_path)\n\
+    else:\n\
+        # Serve index.html for all other routes (React Router)\n\
+        if os.path.exists("/app/frontend/build/index.html"):\n\
+            return FileResponse("/app/frontend/build/index.html")\n\
+        else:\n\
+            return {"error": "Frontend build not found"}\n\
 \n\
 if __name__ == "__main__":\n\
     import uvicorn\n\
@@ -99,6 +125,7 @@ COPY --from=backend /usr/local/bin /usr/local/bin
 
 # Copy application code from backend stage
 COPY --from=backend /app/backend ./backend
+COPY --from=backend /app/frontend ./frontend
 COPY --from=backend /app/frontend_server.py ./ 
 
 # Create non-root user for security
