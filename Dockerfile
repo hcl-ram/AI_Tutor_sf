@@ -1,16 +1,17 @@
 # Multi-stage Dockerfile for AI Tutor Application
+
 # Stage 1: Build React Frontend
 FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
 # Copy package files
-COPY package*.json ./
-COPY tailwind.config.js ./
-COPY postcss.config.js ./
+COPY package*.json ./ 
+COPY tailwind.config.js ./ 
+COPY postcss.config.js ./ 
 
 # Install dependencies
-RUN npm ci 
+RUN npm ci
 
 # Copy source code
 COPY src/ ./src/
@@ -43,13 +44,13 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy backend source code
 COPY backend/ ./backend/
 
-# Copy built frontend from previous stage
-COPY --from=frontend-builder /app/frontend/build ./frontend/build
+# Copy built frontend from previous stage (copy the build folder)
+COPY --from=frontend-builder /app/frontend/build /app/frontend/build
 
-# Create a simple static file server for the frontend
+# Install FastAPI and dependencies for serving static files
 RUN pip install --no-cache-dir fastapi[all] python-multipart
 
-# Create a simple static file server script
+# Create a simple static file server for the frontend
 RUN echo 'from fastapi import FastAPI\n\
 from fastapi.staticfiles import StaticFiles\n\
 from fastapi.responses import FileResponse\n\
@@ -57,19 +58,19 @@ import os\n\
 \n\
 app = FastAPI()\n\
 \n\
-# Mount static files\n\
-app.mount("/static", StaticFiles(directory="public"), name="static")\n\
+# Mount static files directory (React build)\n\
+app.mount("/static", StaticFiles(directory="/app/frontend/build/static"), name="static")\n\
 \n\
 @app.get("/")\n\
 async def read_index():\n\
-    return FileResponse("frontend/build/index.html")\n\
+    return FileResponse("/app/frontend/build/index.html")\n\
 \n\
 @app.get("/{path:path}")\n\
 async def read_other(path: str):\n\
     # Serve index.html for all other routes (React Router)\n\
-    if not os.path.exists(f"frontend/build/{path}") or os.path.isdir(f"frontend/build/{path}"):\n\
-        return FileResponse("frontend/build/index.html")\n\
-    return FileResponse(f"frontend/build/{path}")\n\
+    if not os.path.exists(f"/app/frontend/build/{path}") or os.path.isdir(f"/app/frontend/build/{path}"):\n\
+        return FileResponse("/app/frontend/build/index.html")\n\
+    return FileResponse(f"/app/frontend/build/{path}")\n\
 \n\
 if __name__ == "__main__":\n\
     import uvicorn\n\
@@ -96,9 +97,9 @@ WORKDIR /app
 COPY --from=backend /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=backend /usr/local/bin /usr/local/bin
 
-# Copy application code
+# Copy application code from backend stage
 COPY --from=backend /app/backend ./backend
-COPY --from=backend /app/frontend_server.py ./
+COPY --from=backend /app/frontend_server.py ./ 
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
