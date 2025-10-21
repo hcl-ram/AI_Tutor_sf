@@ -24,7 +24,7 @@ const DocChat = () => {
         setUploadedDocument(result);
         // Fetch summary for preview
         const token = localStorage.getItem('token');
-        const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        const base = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_BASE_URL || 'http://98.84.139.47:8002';
         if (result?.s3Key) {
           setLoadingSummary(true);
           try {
@@ -164,7 +164,7 @@ const DocChat = () => {
         const base =
           process.env.REACT_APP_API_BASE ||
           process.env.REACT_APP_API_BASE_URL ||
-          'http://localhost:8002';
+          'http://98.84.139.47:8002';
   
         // Prepare request body
         const payload = { question: userMessage.content };

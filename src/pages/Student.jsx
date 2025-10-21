@@ -82,7 +82,7 @@ const Student = () => {
         setRecs(null);
         setRecsError('');
         const token = localStorage.getItem('token');
-        const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+        const base = process.env.REACT_APP_API_BASE_URL || 'http://98.84.139.47:8002';
         const res = await fetch(`${base}/quiz/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -148,7 +148,7 @@ const Student = () => {
       setRecsLoading(true);
       setRecsError('');
       const token = localStorage.getItem('token');
-      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+      const base = process.env.REACT_APP_API_BASE_URL || 'http://98.84.139.47:8002';
         const res = await fetch(`${base}/quiz/recommendations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

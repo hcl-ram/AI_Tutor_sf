@@ -21,7 +21,7 @@ const Home = () => {
     setAuthLoading(true);
     try {
       const endpoint = isSignup ? `/auth/${selectedRole}/signup` : `/auth/${selectedRole}/login`;
-      const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+      const base = process.env.REACT_APP_API_BASE_URL || 'http://98.84.139.47:8002';
       const res = await fetch(`${base}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
