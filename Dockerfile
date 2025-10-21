@@ -58,7 +58,7 @@ import os\n\
 app = FastAPI()\n\
 \n\
 # Mount static files\n\
-app.mount("/static", StaticFiles(directory="frontend/build/static"), name="static")\n\
+app.mount("/static", StaticFiles(directory="public"), name="static")\n\
 \n\
 @app.get("/")\n\
 async def read_index():\n\
