@@ -23,7 +23,7 @@ const Teacher = () => {
   React.useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    const base = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8002';
+    const base = process.env.REACT_APP_API_BASE_URL || 'http://98.84.139.47:8002';
     const headers = { 'Authorization': `Bearer ${token}` };
     Promise.all([
       fetch(`${base}/teacher/students`, { headers }).then(r => r.json()).catch(() => ({ students: [] })),

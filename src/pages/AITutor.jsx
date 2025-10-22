@@ -68,7 +68,8 @@ const AITutor = () => {
     setRefinedNote("");
 
     try {
-      const response = await fetch("http://localhost:8002/notes", {
+      const apiBase = process.env.REACT_APP_API_BASE || 'http://98.84.139.47:8002';
+      const response = await fetch(`${apiBase}/notes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -185,7 +186,7 @@ const AITutor = () => {
                   setIsGenerating(true);
                   setErrorText('');
                   try {
-                    const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:8002';
+                    const apiBase = process.env.REACT_APP_API_BASE || 'http://98.84.139.47:8002';
                     const resp = await fetch(`${apiBase}/tutor/flashcards`, {
                       method: 'POST',
                       headers: {
@@ -543,7 +544,7 @@ const AITutor = () => {
                           setPlanError('');
                           
                           try {
-                            const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:8002';
+                            const apiBase = process.env.REACT_APP_API_BASE || 'http://98.84.139.47:8002';
                             const response = await fetch(`${apiBase}/tutor/generate-study-plan`, {
                               method: 'POST',
                               headers: {

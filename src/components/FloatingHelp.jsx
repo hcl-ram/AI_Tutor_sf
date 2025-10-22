@@ -15,7 +15,7 @@ const FloatingHelp = () => {
   const { language } = useAppState();
   const t = useTranslation(language);
 
-  const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:8002';
+  const apiBase = process.env.REACT_APP_API_BASE || 'http://98.84.139.47:8002';
 
   // Simple conversation state: 0-select subject, 1-select topic, 2-Q&A
   const [stage, setStage] = useState(0);
