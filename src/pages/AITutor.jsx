@@ -10,7 +10,7 @@ import { mockFlashcards, mockStudyPlan } from '../utils/mockData';
 const AITutor = () => {
   const { language } = useAppState();
   const t = useTranslation(language);
-  const [activeTab, setActiveTab] = useState('flashcards');
+  const [activeTab, setActiveTab] = useState('plan');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [subject, setSubject] = useState('');
   const [topic, setTopic] = useState('');
